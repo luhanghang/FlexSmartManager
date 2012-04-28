@@ -1,0 +1,340 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" 
+	creationComplete="init()"
+	xmlns:coverflow="com.dougmccune.coverflow.*"
+	xmlns:containers="com.dougmccune.containers.*" xmlns:map="views.map.*"
+	xmlns:u="utils.*" xmlns:views="views.*">
+	
+	<mx:Metadata>
+		[Event(name="Popup",type="events.PopupEvent")]
+		[Event(name="SetSpots",type="events.MapSpotEvent")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import views.spot.SpotGroup;
+			import events.MapSpotEvent;
+			import mx.core.Application;
+			import mx.events.CloseEvent;
+			import mx.events.DragEvent;
+			import events.MapEvent;
+			import mx.controls.Alert;
+			import mx.events.ItemClickEvent;
+			import mx.utils.ObjectProxy;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			import mx.controls.buttonBarClasses.ButtonBarButton;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import events.PopupEvent;
+			import utils.Icons;
+			
+			[Bindable]
+			public var spotGroups:XML;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			[Bindable]
+			private var mapsTreeData:XML;
+			private var mapRoot:XML;
+			
+			private var showingMap:XML;
+			
+			private function init():void {
+				bModify.enabled = false;
+				mapListRPC.url = utils.Utils.get_url("/maps/list");
+				mapListRPC.send();
+			}
+			
+			private function setMapList(event:ResultEvent):void {
+				mapsTreeData = XML(event.result);
+				mapRoot = mapsTreeData.Map.(@id=="0")[0];
+				this.callLater(function():void {mapTree.expandItem(mapRoot,true)});
+				mapTree.selectedIndex = 0;
+				init_coverflow(mapRoot);
+			}
+			
+			private function init_coverflow(map:XML):void {
+				for each(var node:XML in map.children()) {
+					var p:ThumbPanel = new ThumbPanel();
+					p.map = node;
+					p.addEventListener("MapClick", map_click);
+				}
+			}
+			
+			private function map_click(event:MapEvent):void {
+				showMap(event.map as XML);
+			}
+			
+			private function showMap(map:XML):void {
+				if(map == mapRoot) return;
+				mapImage.source = utils.Utils.get_url(map.@img);
+				nameTitle.setText(map.@name);
+				title.text = map.@name;
+				bSet.visible = true;
+				bSet.includeInLayout = true;
+				showingMap = map;
+			}
+			
+			private function mapTreeClick():void {
+				var map:XML = mapTree.selectedItem as XML;
+				if(map.children().length() > 0) {
+					mapTree.expandItem(map, true);
+				}	
+				bModify.enabled = mapTree.selectedIndex > 0;
+				show_image(map);
+			}
+		
+			private function show_image(map:XML):void {
+				init_coverflow(map);
+				showMap(map);
+			}
+					
+			private function labelFunc(item:XML):String {
+				var cs:int = item.children().length();
+				if(cs == 0) return item.@name;
+				return item.@name + " (" + cs + ")";
+			}
+			
+			private function show_map_inf(isNew:Boolean,event:MouseEvent):void {
+				var node:XML = mapTree.selectedItem as XML;
+				if(isNew) {
+					if(stat.selected) {
+						var mapInf:Uploader = new Uploader;
+						mapInf.pMap = node;
+						mapInf.maps = mapRoot.Map;
+						mapInf.callBack = save_map;	
+						dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, mapInf));
+					} else {
+						var webInf:WebMapInf = new WebMapInf;
+						webInf.pMap = node;
+						webInf.maps = mapRoot.Map;
+						webInf.callBack = save_map;	
+						dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, webInf));
+					}
+				} else {
+					if(node.@web == '0') {
+						var mapInf:Uploader = new Uploader;
+						mapInf.pMap = node.parent();
+						mapInf.map = node;
+						mapInf.maps = mapRoot.Map;
+						mapInf.callBack = save_map;	
+						dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, mapInf));
+					} else {
+						var webInf:WebMapInf = new WebMapInf;
+						webInf.pMap = node.parent();
+						webInf.map = node;
+						webInf.maps = mapRoot.Map;
+						webInf.callBack = save_map;	
+						dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, webInf));
+					}
+				}
+			}
+			
+			private function save_map(map:XML, isNew:Boolean):void {
+				var node:XML = mapTree.selectedItem as XML
+				if(isNew) {
+					node.appendChild(map);
+					node.@isBranch = "true";
+					mapTree.expandItem(node, true);
+					mapTree.selectedItem = map;
+				} else {
+					node.@name = map.@name;
+					node.@city = map.@city;
+				}
+				show_image(map);
+				bModify.enabled = true;
+			}
+						
+			private var _draggedItem:XML;
+			private function mDragStart(event:DragEvent):void {
+				this._draggedItem = mapTree.selectedItem as XML;
+				if(_draggedItem.@id != '0' && _draggedItem.children().length() > 0) { //开始拖动时将被拖动对象闭合，保证整体拖动并避免将父节点拖放到子节点上
+					mapTree.expandItem(_draggedItem,false);
+				}	
+			}
+			
+			private function mDragEnter( event:DragEvent ):void {
+                event.preventDefault();
+                if(_draggedItem.@id != '0')
+                	DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+            }
+            
+            private function mDragOver( event:DragEvent ) : void {
+                event.preventDefault();
+                event.currentTarget.showDropFeedback(event);
+
+                mapTree.selectedIndex = mapTree.calculateDropIndex(event);
+                var node:XML = mapTree.selectedItem as XML;
+				
+				if(_draggedItem == node) { //保证拖放目的是组并不是本身
+					DragManager.showFeedback(DragManager.NONE);
+					event.currentTarget.hideDropFeedback(event);
+                    return;
+				}
+				
+				mapTree.expandItem(node,true); //如果是组将其展开
+				if (_draggedItem.parent() == node) { //不能拖放到本组
+					DragManager.showFeedback(DragManager.NONE);
+					event.currentTarget.hideDropFeedback(event);
+                    return;
+				}
+
+                DragManager.showFeedback(DragManager.MOVE);
+            }
+            
+            private function mDragDrop(event:DragEvent):void {
+            	event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+                mapTree.selectedIndex = mapTree.calculateDropIndex(event);
+                var node:XML = mapTree.selectedItem as XML; //目的组
+                remove_node(_draggedItem);
+                node.appendChild(this._draggedItem);
+                node.@isBranch = "true";
+                mapTree.expandItem(node,true);
+                init_coverflow(node);
+                mapTree.enabled = false; //避免其他操作
+                var params:URLVariables = new URLVariables;
+				params['map[parent_id]'] = node.@id;
+                mapRPC.url = Utils.get_url("/maps/update/" + _draggedItem.@id);
+				mapRPC.send(params); 
+            }
+            
+            private function mDragExit(event:DragEvent):void {
+            	event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+            	mapTree.selectedItem = _draggedItem;  
+            	DragManager.showFeedback(DragManager.NONE);          	
+            }
+            
+            private function tDragEnter(event:DragEvent):void {
+            	if(event.dragInitiator == mapTree && _draggedItem.@id != '0') {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+				}
+            }
+            
+            private function remove_node(node:XML):XML {
+            	var p:XML = node.parent() as XML;
+				var children:XMLList = XMLList(p.children());
+	            for(var i:int = 0 ; i < children.length(); i++) {
+	            	if( children[i] == node ) {
+	                	delete children[i];
+	                }
+	            }
+	            if(p.children().length() == 0) p.@isBranch = "false";
+	            return p;
+            }
+            
+            private function remove_map(event:CloseEvent):void {
+            	if(event.detail == Alert.YES) {
+	            	var node:XML = mapTree.selectedItem as XML;
+	                var p:XML = remove_node(node);
+	                mapTree.selectedItem = p;
+	                init_coverflow(p);
+	                mapTree.enabled = false;	
+	                mapRPC.url = Utils.get_url("/maps/destroy/" + node.@id);
+	                mapRPC.send();
+             	}
+            }
+            
+            private function set_spots():void {
+            	if(showingMap.@web == 0) {
+	            	var sp:SetSpots = new SetSpots;
+	            	sp.spotGroups = spotGroups;
+	            	sp.init(showingMap);	
+	          		dispatchEvent(new MapSpotEvent(sp, "SetSpots"));		
+            	} else {
+            		var url:String = "/maps/set_web/" + showingMap.@id; 
+					var request:URLRequest = new URLRequest(url); 
+					navigateToURL(request,"_blank");
+            	}
+            }
+            
+			private function set_icon(item:Object):* {
+         		if(item.@id == '0') return Icons.HOME;
+         		if(item.@web == '1') return Icons.MAPWEB; 
+				return Icons.MAP;		
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="mapListRPC" showBusyCursor="true" result="setMapList(event)" resultFormat="xml"/>
+	<mx:HTTPService id="mapRPC" showBusyCursor="true" useProxy="false" method="POST" result="mapTree.enabled=true"/>
+	
+	<mx:Fade id="fadeIn" alphaFrom="0.3" alphaTo="1"/>
+	<mx:Fade id="fadeOut" alphaFrom="1" alphaTo="0.3"/>
+
+	<mx:Glow id="glow" duration="1000" 
+        alphaFrom="1" alphaTo="1" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="30.0" 
+        color="0x00FF80" repeatCount="10000"/> 
+    <mx:Glow id="glowOut" duration="1000" 
+        alphaFrom="1" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="30.0"
+        color="0x00FF80" effectStart="glow.stop()"/>       
+	
+	
+	<mx:HDividedBox width="100%" height="100%">
+		<mx:Canvas width="250" maxWidth="250" styleName="menu" height="100%" borderSides="left right bottom">
+			<mx:VBox width="100%" height="100%" x="0" y="25" 
+				paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0">
+				<mx:Tree id="mapTree" dataProvider="{mapsTreeData}" 
+					width="100%" height="100%" showRoot="false" 
+					labelFunction="{labelFunc}" iconFunction="set_icon" 
+					click="mapTreeClick()" dragEnabled="true" 
+					allowMultipleSelection="false" 
+					dragMoveEnabled="false" 
+					dragEnter="mDragEnter(event)" 
+					dragStart="mDragStart(event)" 
+					dragOver="mDragOver(event)" 
+					dragDrop="mDragDrop(event)" 
+					dragExit="mDragExit(event)" 
+					textIndent="6" rowHeight="18" 
+					itemRenderer="skins.TreeItemRender"/>
+				
+				<mx:HBox width="100%" verticalAlign="bottom" horizontalGap="3" 
+					paddingLeft="5" paddingRight="5" paddingTop="5" paddingBottom="5">
+					<mx:VBox width="100%">
+						<mx:HBox width="100%">
+							<mx:Button label="添加" id="bNew" click="show_map_inf(true,event)"/>
+							<mx:RadioButtonGroup id="maptype"/>
+							<mx:RadioButton id="stat" label="静态地图" group="{maptype}" selected="true"/>
+							<mx:RadioButton id="web" label="web地图" group="{maptype}"/>
+						</mx:HBox>
+						<mx:HBox width="100%">
+							<mx:Button label="修改" id="bModify" click="show_map_inf(false,event)"/>
+							<mx:Spacer width="100%"/>
+							<views:Trash src="{mapTree}" dragEnterOverride="true" 
+								dragEnter="tDragEnter(event)" 
+								callBack="remove_map" 
+								confirm="如果删除该地图,其所有子地图将全部被连同删除,确定继续?          "/>	
+						</mx:HBox>	
+					</mx:VBox>
+				</mx:HBox>		
+			</mx:VBox>
+			<views:StyleTitle text="电子地图"/>	
+		</mx:Canvas>
+		
+		<mx:Canvas width="100%" height="100%" styleName="menu" borderSides="left right bottom">
+			<mx:VBox width="100%" height="100%" verticalGap="0" x="0" y="25" paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0">
+				<mx:Canvas id="imgPanel" width="100%" height="100%">
+					<u:LoadingImage y="0" x="0" width="100%" height="100%" id="mapImage" 
+						scaleContent="true" horizontalAlign="center" verticalAlign="middle"/>
+					<mx:Canvas width="100%" height="30" styleName="board">
+						<mx:HBox width="100%" height="100%" verticalAlign="middle">
+							<mx:Label id="title" x="0" color="#ffffff" verticalCenter="0"/>
+							<mx:Spacer width="100%"/>
+							<mx:Label verticalCenter="0" rollOverEffect="{glow}" rollOutEffect="{glowOut}" id="bSet" visible="false" text="设置监控点" color="#ffffff" mouseChildren="false" useHandCursor="true" buttonMode="true" click="set_spots()"/>						
+						</mx:HBox>
+					</mx:Canvas>	
+				</mx:Canvas>	
+			</mx:VBox>
+			<views:StyleTitle id="nameTitle" text="电子地图"/>	
+		</mx:Canvas>							
+	</mx:HDividedBox>
+</mx:Canvas>

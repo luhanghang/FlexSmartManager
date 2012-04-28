@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" width="350" height="180" 
+	title="web地图信息" creationComplete="init()" xmlns:utils="utils.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import mx.controls.buttonBarClasses.ButtonBarButton;
+			import mx.events.ItemClickEvent;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			
+			[Bindable]
+            public var map:XML;
+            
+            [Bindable]
+            public var maps:XMLList;
+            
+            [Bindable]
+            private var submit:ButtonBarButton;
+            
+            public var pMap:XML;	
+            private var isNew:Boolean = false;
+            
+            private function init():void {
+            	init_validators();
+            	isNew = !map;
+            }
+            
+            private function init_validators():void {
+            	submit = buttonBar.getChildAt(0) as ButtonBarButton;
+            	submit.enabled = false;
+            	formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};	
+            }
+            
+            private function buttonsClick(event:ItemClickEvent):void {
+				switch(event.index) {
+					case 0:
+						save_inf();
+						break;
+					case 1:
+						close();
+						break;
+				}
+			}
+			
+			private function save_inf():void {
+				if(isNew) {
+					mapRPC.url = Utils.get_url("/maps/create_web");	
+				} else {
+					mapRPC.url = Utils.get_url('/maps/update/' + map.@id);
+				}
+				var params:URLVariables = new URLVariables;
+				params['map[name]'] = map_name.text;
+				params['map[city]'] = city.text;
+				
+				if(!isNew) {
+					map.@name = params['map[name]'];
+					map.@city = params['map[city]']
+				}
+				
+				mapRPC.send(params);
+			}
+			
+			private function saved(event:ResultEvent):void {
+				if(isNew) {
+					map = XML(event.result);
+				}
+				callBack.call(parent, map, isNew);
+				close();	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="mapRPC" method="POST" useProxy="false" showBusyCursor="true" result="saved(event)" resultFormat="xml"/>
+	<mx:Array id="validators">
+		<mx:Validator property="text" required="true" requiredFieldError="请填写地图名称" source="{map_name}"/>
+		<mx:Validator property="text" required="true" requiredFieldError="请填写城市名称" source="{city}"/>
+		<utils:UniqueValidatorXML errorMessage="地图名称已存在" field="@name" list="{maps}" selfObj="{map}" required="true" source="{map_name}" property="text" requiredFieldError="请填写地图名称"/>
+	</mx:Array>
+	
+	<mx:VBox x="0" y="0" width="100%" height="100%" horizontalAlign="center">
+		<mx:Form width="100%" defaultButton="{submit}" height="7"/>
+		<mx:VBox width="100%" height="100%" horizontalAlign="center">
+			<mx:HBox width="95%" horizontalCenter="0">
+				<mx:FormItem label="地图名称:">
+					<mx:TextInput id="map_name" text="{map.@name}"/>
+				</mx:FormItem>
+			</mx:HBox>
+			<mx:HBox width="95%" horizontalCenter="0">
+				<mx:FormItem label="城市名称:">
+					<mx:TextInput id="city" text="{map.@city}"/>
+				</mx:FormItem>
+			</mx:HBox>
+		</mx:VBox>
+	</mx:VBox>
+	
+	
+	<mx:ControlBar>
+		<mx:HBox id="buttons">
+			<mx:ButtonBar id="buttonBar" itemClick="buttonsClick(event)" horizontalGap="-1">
+				<mx:dataProvider>
+					<mx:String>保存</mx:String>
+					<mx:String>关闭</mx:String>
+				</mx:dataProvider>
+			</mx:ButtonBar>
+		</mx:HBox>
+	</mx:ControlBar>
+</TitleWin>

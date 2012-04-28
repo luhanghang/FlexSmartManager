@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" 
+	horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+	xmlns:recording="views.recording.*" xmlns:views="views.*" creationComplete="init()">
+	
+	<mx:Metadata>
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.formatters.DateFormatter;
+			import mx.validators.ValidationResult;
+			import mx.rpc.events.ResultEvent;
+			import mx.events.CloseEvent;
+			import mx.messaging.channels.StreamingAMFChannel;
+			import utils.Alert;
+			import mx.controls.CheckBox;
+			import mx.collections.ArrayCollection;
+			import utils.Utils;
+			import mx.core.Application;
+			import mx.managers.PopUpManager;
+			import utils.Icons;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			[Bindable]
+			public var spots:XML;
+			
+			[Bindable]
+			public static var hours:Array = new Array;
+			
+			[Bindable]
+			public static var minutes:Array = new Array;
+			
+			private function init():void {
+				//spotRPC.url = Utils.get_url("/spots/list");
+				//spotRPC.send();
+				var date:Date = new Date;
+				date.setDate(1);
+				var fr:DateFormatter=new DateFormatter;
+         		fr.formatString="YYYY-MM-DD";
+            	from_date.text = fr.format(date);
+            	to_date.text = fr.format(new Date);
+			}
+			
+			private function isGroup(node:XML):Boolean {
+				return node.localName().toString() == "Group";
+			}
+         	
+			private function set_icon(item:Object):* {
+				var group_root:XML = spots.Group.(@parent=="0")[0];
+				if(item == group_root) return Icons.HOME;
+				if(isGroup(item as XML)) {
+					//return spotTree.isItemOpen(item)? Icons.FOLDER_OPEN:Icons.FOLDER;
+					return spotTree.isItemOpen(item)? spotTree.getStyle('folderOpenIcon'):spotTree.getStyle('folderClosedIcon');
+				} else return Icons.MONITOR;		
+			}
+			
+			private function labelFunction(item:XML):String {
+				if(isGroup(item))
+					return item.@name + " (" + item.children().length() + ")";
+				return item.@name
+			}
+			
+			private function set_spots(event:ResultEvent):void {
+				spots = XML(event.result);	
+			}
+			
+			private function search():void {
+				if(from_date.text == '' || to_date.text == '') {
+					Alert.show("请选定日期范围         ");
+					return;
+				}
+				if(!spotTree.selectedItem) {
+					Alert.show("请选择监控点         ");
+					return;	
+				}
+				records.spot = spotTree.selectedItem as XML;
+				records.gateway = spots.@gateway;
+				records.from_date = from_date.text;
+				records.to_date = to_date.text;
+				records.search();
+			}
+		]]>
+	</mx:Script>
+		
+	<mx:HTTPService id="spotRPC" useProxy="false" method="POST" showBusyCursor="true" resultFormat="xml" result="set_spots(event)"/>
+	<mx:HDividedBox x="0" y="0" width="100%" height="100%">
+		<mx:Canvas width="250" height="100%" styleName="menu" borderSides="left right bottom" maxWidth="250">
+			<mx:VBox width="100%" height="100%" x="0" y="25">
+				<mx:HBox width="100%" horizontalAlign="center" horizontalGap="0">
+					<mx:Label text="从"/>
+					<mx:DateField id="from_date" formatString="YYYY-MM-DD"/>
+					<mx:Label text="到"/>
+					<mx:DateField id="to_date" formatString="YYYY-MM-DD"/>
+				</mx:HBox>
+				<mx:Tree id="spotTree" dataProvider="{spots}" showRoot="false" itemRenderer="skins.TreeItemRender" 
+					width="100%" height="100%" labelFunction="{labelFunction}" openItems="{spots.Group}" rowHeight="18"
+					iconFunction="set_icon" doubleClickEnabled="true" doubleClick="spotTree.selectedIndex = -1" click="search()"/>
+			</mx:VBox>
+			<views:StyleTitle text="录像查询"/>	
+		</mx:Canvas>
+		<mx:Canvas id="scheduleFrame" width="100%" height="100%" styleName="menu" borderSides="left right bottom"
+			horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<views:StyleTitle id="title" text=" 录像记录 "/>
+			<recording:Records width="100%" height="100%" id="records" x="0" y="25"/>
+		</mx:Canvas>
+	</mx:HDividedBox>
+</mx:Canvas>

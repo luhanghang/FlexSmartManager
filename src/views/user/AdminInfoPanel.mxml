@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="220" height="150" styleName="adminInfo" 
+	shadowDirection="right" shadowDistance="5" dropShadowEnabled="true" click="modify(event)" 
+	rollOver="styleName='adminInfoHover';l1.styleName='labelHover';l2.styleName='labelHover';l3.styleName='labelHover'"
+	rollOut="styleName='adminInfo';l1.styleName='label';l2.styleName='label';l3.styleName='label'" 
+	horizontalScrollPolicy="off" verticalScrollPolicy="off" useHandCursor="true" buttonMode="true" 
+	mouseChildren="false" mouseMove="MouseMove(event)">
+	<mx:Metadata>
+			[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>	
+	<mx:Script>
+		<![CDATA[
+			import mx.core.DragSource;
+			import events.PopupEvent;
+			import mx.managers.DragManager;
+			import utils.*;
+			
+			[Bindable]
+			public var user:XML;
+			
+			private function modify(event:MouseEvent):void {
+				if(Utils.getRole() == "mo") return;
+				var infScreen:AdminInfo = new AdminInfo;
+				infScreen.user = user;
+				infScreen.callBack = update_admin;
+				this.dispatchEvent(new PopupEvent("Popup", event, infScreen));
+			}
+			
+			private function update_admin(user:XML):void {
+				this.user = user;
+			}
+			
+			private function MouseMove(event:MouseEvent):void {
+				var ds:DragSource = new DragSource
+	            ds.addData(user,"user");
+
+	            var canvasProxy:AdminInfoPanel = new AdminInfoPanel;
+	            canvasProxy.user = user;
+	            canvasProxy.width = width;
+	            DragManager.doDrag(this, ds, event, canvasProxy);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:VBox width="100%" height="100%" y="20" left="10" right="10">
+		<mx:Canvas id="l1" styleName="label" width="100%">
+			<mx:Label text="{user.@realname}" horizontalCenter="0"/>
+		</mx:Canvas>
+		<mx:Canvas id="l2" styleName="label" width="100%">
+			<mx:Label text="登录帐号: {user.@account}" horizontalCenter="0"/>
+		</mx:Canvas>
+		<mx:Canvas id="l3" styleName="label" width="100%">
+			<mx:Label text="密码: {user.@passwd}" horizontalCenter="0"/>
+		</mx:Canvas>
+	</mx:VBox>
+	<mx:Image source="assets/uw.png" bottom="5" right="5" alpha="0.5"/>
+</mx:Canvas>

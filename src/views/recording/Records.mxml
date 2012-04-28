@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" horizontalScrollPolicy="off" 
+	width="100%" height="100%" xmlns:recording="views.record.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.events.FlexEvent;
+			import mx.core.Application;
+			import mx.rpc.events.ResultEvent;
+			import events.DailyScheduleEvent;
+			import mx.controls.Alert;
+			import utils.Utils;
+			
+			[Bindable]
+			public var spot:XML;
+			public var gateway:String;
+			public var from_date:String;
+			public var to_date:String;
+			
+			[Bindable]
+			public var recordItems:XML;
+			
+			private var recordDays:Dictionary;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+		
+			[Bindable]
+			static public var hours:Array = [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23];
+			
+			public function init():void {
+				
+			}
+			
+			public function search():void {
+				recordRPC.url = Utils.get_url("/record_files/search/" + spot.@id + "/?from_date=" + from_date + "&to_date=" + to_date);
+				recordRPC.send();
+			}
+			
+			private function add_schedule(item:XML):void {
+				var c:RecordItem = recordDays[String(item.date)].addItem(this.spot.@name,item.startHour, item.startMin, item.endHour, item.endMin, item.pathFile, item.state, item.error);
+				c.recordId = item.@id;
+			}
+			
+			public function init_records(event:ResultEvent):void {
+				recordDays = new Dictionary;
+				removeAll();
+				recordItems = XML(event.result);
+				for each(var item:XML in recordItems.Record) {
+					if(recordDays[String(item.date)] == null) addNewSchedule(item);
+				}
+			}
+			
+			private function addSchedule(event:FlexEvent):void {
+				var c:Record = event.currentTarget as Record;
+				for each(var item:XML in recordItems.Record) {
+					if(item.date == c.date)
+						add_schedule(item);
+				}
+			}
+			
+			private function removeAll():void {
+				scheduleBox.removeAllChildren();
+			}
+			
+			public function doAddItem(event:ResultEvent):void {
+				Utils.doFreeze(mx.core.Application.application, false);
+				var item:XML = XML(event.result);
+				recordItems.appendChild(item);
+				if(recordDays[String(item.date)] == null) 
+					addNewSchedule(item, true);
+				else
+					add_schedule(item); 	
+			}
+			
+			private function addNewSchedule(item:XML, sort:Boolean = false):void {
+				var c:Record = new Record;
+				c.date = item.date;
+				if(sort) {
+					var index:Number = scheduleBox.numChildren;
+					for each(var s:Record in scheduleBox.getChildren()) {
+						if( new Date(Utils.StringReplaceAll(s.date, "-","/")).valueOf() - 
+							new Date(Utils.StringReplaceAll(item.date,"-","/")).valueOf() > 0) {
+							index = scheduleBox.getChildIndex(s);
+							break;
+						}
+					}
+					scheduleBox.addChildAt(c, index);	
+				} else {
+					scheduleBox.addChild(c);
+				}
+				recordDays[String(item.date)] = c;
+				c.addEventListener(FlexEvent.CREATION_COMPLETE, addSchedule);	
+			}
+			
+			private var _removeItem:RecordItem;
+		
+			private function doRemoveItem(event:ResultEvent):void {
+				_removeItem.parent.removeChild(_removeItem);
+			}
+			
+			public function removeDate(event:ResultEvent):void {
+				scheduleBox.removeChild(recordDays[event.result]);		
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="recordRPC" useProxy="false" showBusyCursor="true" resultFormat="xml" result="init_records(event)"/>
+	<mx:VBox y="0" width="100%" height="100%" left="-1" right="-1" verticalGap="-1" id="scheduleBox"/>
+</mx:Canvas>

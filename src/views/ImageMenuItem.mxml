@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml" buttonMode="true" 
+	width="100%" styleName="menuItem" alpha="0.6" useHandCursor="true"
+	rollOverEffect="{fadeIn}" rollOutEffect="{fadeOut}" horizontalGap="3">
+	
+	<mx:Metadata>
+		[Event(name="Popup",type="events.PopupEvent")]	
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import utils.Utils;
+		
+			[Bindable]
+			public var text:String;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			public function selected(s:Boolean):void {
+				if(s) { 
+					alpha = 2;
+				} else {
+					alpha = 0.6;
+				}
+				this.fadeOut.alphaTo = alpha;
+			}
+			
+			public function enable(b:Boolean):void {
+				e.visible = b;
+				e.includeInLayout = b;
+				d.visible = !b;
+				d.includeInLayout = !b;
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Fade alphaFrom="0.6" alphaTo="2" id="fadeIn"/>
+	<mx:Fade alphaFrom="1" alphaTo="0.6" id="fadeOut"/>
+	<mx:Image id="e" source="assets/enabled.png" visible="false" includeInLayout="false"/>
+	<mx:Image id="d" source="assets/disabled.png"/>	
+	<mx:Label text="{text}" buttonMode="true" useHandCursor="true" mouseChildren="false"/>
+</mx:HBox>

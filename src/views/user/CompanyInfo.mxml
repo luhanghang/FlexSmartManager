@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="400" height="250" title="组织机构信息" creationComplete="init()"
+	xmlns:u="utils.*" xmlns:mode="views.VisualMode.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			
+			private var fileRef:FileReference;
+			private var imageFilters:Array = [new FileFilter("JPEG Images", "*.jpg", "JPEG")];
+			private var byteArray:ByteArray;
+            private var bitmapData:BitmapData;
+            private var loader:Loader=new Loader();
+			public var com_id:String;
+			
+			[Bindable]
+			public var companies:XMLList;
+			
+			[Bindable]
+			public var company:XML;
+			
+			private function init():void{
+				gRPC.url = utils.Utils.get_url("/companies/save/" + com_id);
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				if(!company) { 
+					company = <Company/>;
+					company.@visualModes = 1;
+				}
+				submit.enabled = com_name.text != "";
+				init_fileRef();
+				img.source = utils.Utils.get_url(company.@logo == 0?"/assets/logo.jpg":"/images/logos/logo_" + company.@id + ".jpg");
+				if(company.@visualModes == "") {
+					vm1.selected = true;
+					vm2.selected = true;
+					vm5.selected = true;
+					vm6.selected = true;
+					vm3.selected = true;
+					vm4.selected = true;	
+				} else {
+					var modes:Array = company.@visualModes.split(",");
+					for each(var mode:String in modes) {
+						if(mode == "1") vm1.selected = true;
+						if(mode == "2") vm2.selected = true;
+						if(mode == "5") vm5.selected = true;
+						if(mode == "6") vm6.selected = true;
+						if(mode == "3") vm3.selected = true;
+						if(mode == "4") vm4.selected = true;
+					}
+				}
+			}
+			
+			private function refresh(event:ResultEvent):void {
+				company.@id = event.result.toString();
+				//set_data();
+				callBack.call(this.parent,company);
+				close();
+			}
+			
+			private function set_data():void {
+				company.@name = com_name.text;
+			}
+			
+			private function showError(event:FaultEvent):void {
+				utils.Alert.show("服务器忙，请稍后重试    ","错误");
+				submit.enabled = true;
+			}
+			
+			private function submit_data():void {
+				var visual_modes:String = "";
+				if(vm1.selected) visual_modes += ",1";
+				if(vm2.selected) visual_modes += ",2";
+				if(vm5.selected) visual_modes += ",5";
+				if(vm6.selected) visual_modes += ",6";
+				if(vm3.selected) visual_modes += ",3";
+				if(vm4.selected) visual_modes += ",4";
+				if(visual_modes != "") {
+					visual_modes = visual_modes.substr(1,visual_modes.length);
+				}
+				var request:URLRequest;
+				var params:URLVariables = new URLVariables();
+				params['company[name]'] = com_name.text;
+				params['company[visual_modes]'] = visual_modes;
+				company.@name = params['company[name]'];
+				company.@visualModes = params['company[visual_modes]'];
+				
+				if(fileRef.data) {
+					company.@logo = 1;
+					params['company[logo]'] = 1;
+					params['user_id'] = Utils.getUserId();
+					request = new URLRequest(gRPC.url);
+					request.method = URLRequestMethod.POST;		
+					request.data = params;
+					try {
+						fileRef.upload(request);
+					} catch(error:Error) {}
+				} else {
+					gRPC.send(params);
+				}
+			}
+			
+			private function fileBrowse():void {
+				fileRef.browse(imageFilters);	
+			}
+			
+			private function init_fileRef():void {
+            	Security.allowDomain("*");
+				this.fileRef = new FileReference();
+				fileRef.addEventListener(Event.SELECT, selectHandler);
+				fileRef.addEventListener(Event.COMPLETE, completeHandler);
+				fileRef.addEventListener(DataEvent.UPLOAD_COMPLETE_DATA, responseHandler);	
+            }
+            
+            private function selectHandler(event:Event):void {
+				fileRef.load();	
+			}
+			
+			private function completeHandler(event:Event):void {
+				byteArray = fileRef.data;
+				loader.contentLoaderInfo.addEventListener(Event.COMPLETE,loaderCompleteHandler);
+                loader.loadBytes(byteArray);	
+			}
+			
+			private function loaderCompleteHandler(event:Event):void {
+					var bitmap:Bitmap = Bitmap(loader.content);
+	                img.source = bitmap;	
+			}
+			
+			private function responseHandler(event:DataEvent):void {
+				company.@id = event.data;
+				callBack.call(this.parent,company);
+				close();	
+			}
+	]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="gRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" 
+		result="refresh(event)" fault="showError(event)" resultFormat="text"/>
+	
+	<mx:Array id="validators">
+		<u:UniqueValidatorXML required="true" property="text" source="{com_name}" requiredFieldError="组织机构名称必须填写"
+		 errorMessage="组织机构名称已被使用" field="@name" list="{companies}" selfObj="{company}"/>	
+	</mx:Array>
+	<mx:VBox width="100%" height="100%">
+		<mx:Form x="0" y="0" width="100%" height="100%" defaultButton="{submit}">
+			<mx:FormItem label="组织机构名称">
+				<mx:TextInput id="com_name" text="{company.@name}" width="280"/>
+			</mx:FormItem>
+		</mx:Form>
+		<mx:Canvas id="imgCan" width="100%" height="100%">
+			<mx:Image width="235" height="40" id="img" horizontalCenter="0" horizontalAlign="center"/>
+		</mx:Canvas>
+		<mx:HBox width="100%" paddingTop="5" paddingBottom="5" paddingLeft="20">
+			<mx:CheckBox id="vm1"/>
+			<mode:Single width="22" height="18" number="1" mode="1"/>
+			<mx:CheckBox id="vm2"/>	
+			<mode:Four width="22" height="18" number="4" mode="2"/>
+			<mx:CheckBox id="vm5"/>
+			<mode:Six width="22" height="18" number="6" mode="5"/>
+			<mx:CheckBox id="vm6"/>
+			<mode:Eight width="22" height="18" number="8" mode="6"/>
+			<mx:CheckBox id="vm3"/>
+			<mode:Nine width="22" height="18" number="9" mode="3"/>
+			<mx:CheckBox id="vm4"/>
+			<mode:Sixteen width="22" height="18" number="16" mode="4"/>
+		</mx:HBox>
+	</mx:VBox>
+	<mx:ControlBar width="100%">
+		<mx:Button label="保存" id="submit" enabled="false" click="submit.enabled=false;submit_data()"/>
+		<mx:Button label="关闭" click="close()"/>
+		<mx:Spacer width="100%"/>
+		<mx:Button label="替换Logo" click="fileBrowse()"/>
+	</mx:ControlBar>
+	
+</TitleWin>

@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="284" height="172" title="管理员信息"
+	xmlns:u="utils.*" 
+	xmlns:v="views.*" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import utils.Utils;
+			import utils.Config;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.managers.PopUpManager;
+			import mx.utils.StringUtil;
+			
+			[Bindable]
+			public var user:XML;
+			public var com_id:String;
+			[Bindable]
+			public var users:XMLList;
+			
+			public function init():void{
+				if (!user) user = <Account/>;
+				get_users();
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				submit.enabled = StringUtil.trim(user.@id) == "";
+			}
+			
+			private function get_users():void {
+				listRPC.url = Utils.get_url("/users/accounts");
+				listRPC.send();
+			}
+			
+			private function set_users(event:ResultEvent):void {
+				users = XML(event.result).Account;
+				form.enabled = true;	
+			}
+			
+			private function refresh(event:ResultEvent):void {
+				user.@id = event.result.toString();
+				//userId.text = event.result.toString();
+				callBack.call(this.parent,user);
+				close();
+			}
+			
+			private function showError(event:FaultEvent):void {
+				utils.Alert.show("服务器忙，请稍后重试    ","错误");
+				submit.enabled = true;
+			}
+			
+			private function submit_data():void {
+				var params:URLVariables = new URLVariables;
+				params['user[account]'] = account.text;
+				params['user[passwd]'] = passwd.text;
+				params['user[realname]'] = realname.text;
+				user.@account = params['user[account]'];
+				user.@passwd = params['user[passwd]'];
+				user.@realname = params['user[realname]'];
+				if(StringUtil.trim(user.@id) == "") {
+					userRPC.url = utils.Utils.get_url("/companies/new_admin/" + com_id);	
+				} else {
+					userRPC.url = utils.Utils.get_url("/users/save/" + user.@id);	
+				}
+				userRPC.send(params); 
+			}
+		]]>
+	</mx:Script>	
+	
+	<mx:HTTPService id="userRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" 
+		result="refresh(event)" fault="showError(event)" resultFormat="text"/> 
+	<mx:HTTPService id="accountRPC"/>
+	<mx:HTTPService id="listRPC" showBusyCursor="true" useProxy="false" resultFormat="xml" result="set_users(event)"/>	     
+	
+	<mx:Array id="validators">
+		<u:UniqueValidatorXML required="true" property="text" source="{account}" requiredFieldError="登录账号必须填写"
+		 errorMessage="登录账号已被使用" field="@account" list="{users}" selfObj="{user}"/>
+		<u:PasswordValidator required="true" property="text" source="{passwd}" requiredFieldError="登录密码必须填写"/>
+		<mx:Validator required="true" property="text" source="{realname}" requiredFieldError="管理员姓名必须填写"/>
+	</mx:Array>
+	
+	<mx:Form defaultButton="{submit}" width="100%" height="100%" id="form" enabled="false">
+		<mx:FormItem label="登录账号" required="true">
+			<mx:TextInput id="account" text="{user.@account}"/>
+		</mx:FormItem>
+		<mx:FormItem label="登录密码" required="true">
+			<mx:TextInput id="passwd" text="{user.@passwd}"/>
+		</mx:FormItem>
+		<mx:FormItem label="管理员姓名" required="true">
+			<mx:TextInput id="realname" text="{user.@realname}"/>
+		</mx:FormItem>
+		<mx:FormItem label="Label" visible="false" includeInLayout="false">
+			<mx:TextInput id="userId" text="{user.@id}"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="保存" id="submit" click="submit.enabled=false;submit_data()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+</v:TitleWin>

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="268" height="142" title="用户组信息" creationComplete="init()"
+	xmlns:u="utils.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			
+			public var g_id:String;
+			
+			[Bindable]
+			public var groups:ArrayCollection;
+			
+			[Bindable]
+			public var group:Object;
+			
+			private function init():void{
+				gRPC.url = utils.Utils.get_url("/user_groups/save/" + g_id);
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				if(!group) { 
+					group = new Object();
+					group.role = 3;
+					group.alias = "监控用户";
+				}
+				submit.enabled = group_name.text != "";
+			}
+			
+			private function refresh(event:ResultEvent):void {
+				group.id = event.result.toString();
+				set_data();
+				callBack.call(this.parent,group);
+				close();
+			}
+			
+			private function set_data():void {
+				group.name = group_name.text;
+			}
+			
+			private function showError(event:FaultEvent):void {
+				utils.Alert.show("服务器忙，请稍后重试    ","错误");
+				submit.enabled = true;
+			}
+			
+			private function submit_data():void {
+				var params:URLVariables = new URLVariables;
+				params['group[name]'] = group_name.text;
+				gRPC.send(params);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="gRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" 
+		result="refresh(event)" fault="showError(event)" resultFormat="text"/>
+	
+	<mx:Array id="validators">
+		<u:UniqueValidator required="true" property="text" source="{group_name}" requiredFieldError="用户组名称必须填写"
+		 errorMessage="用户组名称已被使用" field="name" list="{groups}" selfObj="{group}"/>	
+	</mx:Array>
+	
+	<mx:Form x="0" y="0" width="100%" height="100%" defaultButton="{submit}">
+		<mx:FormItem label="名称">
+			<mx:TextInput id="group_name" text="{group.name}"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="保存" id="submit" enabled="false" click="submit.enabled=false;submit_data()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+	
+</TitleWin>

@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" styleName="scheduleEditor" alpha="0" visible="false" includeInLayout="false">
+	<mx:Metadata>
+		[Event(name="ScheduleChange", type="events.DailyScheduleEvent")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import utils.Utils;
+			import events.DailyScheduleEvent;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			private function closeEditor():void {
+				visible = false;
+				includeInLayout = false;
+				item.restore();
+			}
+			
+			private var item:ScheduleItemDaily;
+			private var oldItem:ScheduleItemDaily;
+			
+			private var last:Number;
+			private function calLastTime():void {
+				var s:Date = new Date("2010/01/01 " + startH.selectedLabel + ":" + startM.selectedLabel);
+				var e:Date;
+				if(endH.selectedLabel == '00' || endH.selectedLabel == '0') {
+					e = new Date("2010/01/02 00:00");	
+				} else {
+					e = new Date("2010/01/01 " + endH.selectedLabel + ":" + endM.selectedLabel);
+				}
+				last = (e.valueOf() - s.valueOf()) / 1000 / 60;
+				lastTime.text = "持续时间:" + last.toString() + "分钟";	
+			}
+			
+			public function setScheduleItem(item:ScheduleItemDaily):void {
+				if(oldItem) oldItem.restore();
+				oldItem = item;
+				this.item = item;
+				startH.selectedItem = item.startHour;
+				startM.selectedItem = item.startMin;
+				endH.selectedItem = item.endHour;
+				endM.selectedItem = item.endMin;
+				state.selected = item.state;
+				calLastTime();
+			}
+			
+			private function save(event:MouseEvent):void {
+				var s:Date = new Date(Utils.StringReplaceAll(item.date,"-","/") + " " + startH.selectedLabel + ":" + startM.selectedLabel);
+				var now:Date = new Date();
+				
+				if(s.valueOf() - now.valueOf() < 0) {
+					utils.Alert.show("计划执行时间应该晚于当前时间", "错误");
+					return;
+				}
+				
+				if(last <= 0) {
+					utils.Alert.show("结束时间应该晚于开始时间", "错误");
+					return;
+				}	
+				item.startHour = startH.selectedLabel;
+				item.startMin = startM.selectedLabel;
+				item.endHour = endH.selectedLabel;
+				item.endMin = endM.selectedLabel;
+				if(item.endHour == "00" || item.endHour == "0") {
+					item.endMin = "0";
+				}
+				item.lastTime = last.toString();
+				item.state = state.selected;
+				item.setState();
+				item.setToolTip();
+				dispatchEvent(new DailyScheduleEvent(item, DailyScheduleEvent.CHANGE));
+				close();
+			}
+			
+			private function close():void {
+				fade.play();	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Fade id="fade" alphaFrom="1" alphaTo="0" target="{this}" effectEnd="closeEditor()"/>
+	<mx:VBox top="10" left="10" right="10" bottom="10">
+		<mx:HBox>
+			<mx:Label text="开始时间"/>
+			<mx:ComboBox id="startH" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.hours}" width="60" rowCount="6"/>
+			<mx:Label text=":" width="10"/>
+			<mx:ComboBox id="startM" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.minutes}" width="60" rowCount="6"/>	
+		</mx:HBox>
+		<mx:HBox>
+			<mx:Label text="结束时间"/>
+			<mx:ComboBox id="endH" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.hours}" width="60" rowCount="6"/>
+			<mx:Label text=":" width="10"/>
+			<mx:ComboBox id="endM" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.minutes}" width="60" rowCount="6"/>			 	
+		</mx:HBox> 
+		<mx:Label id="lastTime" text="持续时间:0分钟" color="haloOrange"/>
+		<mx:HBox width="100%" horizontalGap="1">
+			<mx:CheckBox label="启用" id="state" selected="true"/>
+			<mx:Spacer width="100%"/>
+			<mx:Button label="保存" click="save(event)"/>
+			<mx:Button label="关闭" click="close()"/>
+		</mx:HBox>
+	</mx:VBox>
+</mx:Canvas>

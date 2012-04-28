@@ -1,0 +1,387 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="100%" height="100%" creationComplete="init()"
+	xmlns:views="views.*" visible="false">
+	<mx:Metadata>
+		[Event(name="Freeze")]
+		[Event(name="UnFreeze")]
+		[Event(name="UserAdded",type="events.UserEvent")]
+		[Event(name="UserUpdated",type="events.UserEvent")]
+		[Event(name="UserRemoved",type="events.UserEvent")]
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.XMLListCollection;
+			import events.PopupEvent;
+			import mx.automation.delegates.controls.PopUpButtonAutomationImpl;
+			import events.UserEvent;
+			import mx.events.CloseEvent;
+			import mx.events.DragEvent;
+			import mx.utils.ObjectProxy;
+			import utils.Utils;
+			import mx.rpc.events.ResultEvent;
+			import mx.controls.Alert;
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import mx.controls.listClasses.ListBase;
+			import mx.core.DragSource;
+			import FlexMonitoring;
+			import utils.Icons;
+			
+			[Bindable]
+			public var spots:XML;
+			
+			[Bindable]
+			public var ug_id:String;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			public var accounts:ArrayCollection;
+			
+			[Bindable]
+			private var user_list:ArrayCollection;
+			
+			[Bindable]
+			private var group_spots:XML;
+			
+			[Bindable]
+			public var ug:XML;
+			
+			public function get_data():void {
+				this.visible = false;
+				ugRPC.url = utils.Utils.get_url("/user_groups/get/" + ug_id);
+				ugRPC.send();
+			}
+			private function init():void {
+						
+			}
+			
+			private function set_ug(event:ResultEvent):void {
+//				var flag:Boolean = ug_id != "0"
+//				gSpotsPanel.includeInLayout = flag;
+//				gSpotsPanel.visible = flag;
+//				spotsPanel.includeInLayout = flag;
+//				spotsPanel.visible = flag;
+				ug = XML(event.result);
+				var xc:XMLListCollection = new XMLListCollection;
+				xc.source = ug.Users.User;
+				user_list = new ArrayCollection(xc.toArray());
+				group_spots = <gs/>;
+				group_spots.appendChild(ug.Group[0]);
+				group_spots.appendChild(ug.Group[1]);
+				this.visible = true;
+			}
+			
+			private function gsDragEnter(event:DragEvent):void {
+				if((event.dragInitiator as Tree).id == "spotList") {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+				}
+			}
+			
+			private function gsDragOver(event:DragEvent):void {
+				DragManager.showFeedback(DragManager.COPY);	 	
+            } 
+            
+            private function gsTrashDragOver(event:DragEvent):void {
+            	utils.Utils.trashGrow(gsTrash, true);
+            	DragManager.showFeedback(DragManager.MOVE);
+            	trashGlow.play([gsTrash]);	 	
+            }   
+            
+            private function gsTrashDragExit(event:DragEvent):void {
+            	trashGlowOut.play([gsTrash]);
+            	utils.Utils.trashGrow(gsTrash, false);	 	
+            } 
+            
+            private function gsTrashDragDrop(event:DragEvent):void {
+            	gsTrashDragExit(event);
+            	utils.Alert.show("确定要删除所选监控点吗?   ", "删除确认", Alert.YES|Alert.NO, this, doRemoveGroupSpots, null, Alert.NO);
+            }
+            
+            private function get_spots(item:XML, sArray:Array):void {
+            	if(isGroup(item)) {
+            		for each(var g:XML in item.children()) {
+            			get_spots(g, sArray);			
+            		}
+            	} else {
+            		sArray.push(item.@id);
+            	}
+            }
+            
+            private function doRemoveGroupSpots(event:CloseEvent):void {
+				if (event.detail == Alert.YES) {
+					var item:XML = gSpotList.selectedItem as XML;
+					var s:Array = new Array;
+					get_spots(item, s);
+					var p:XML = item.parent();
+					for(var i:Number = 0; i < p.children().length(); i++) {
+						var it:XML = p.children()[i] as XML;
+						if(it.localName() == item.localName() && it.@id == item.@id) {
+							delete p.children()[i];
+							break;
+						}
+					}
+					
+					var pp:XML = p.parent();
+					if(pp && p.children().length() == 0) {
+						for(var i:Number = 0; i < pp.Group.length(); i++) {
+							if(pp.Group[i].@id == p.@id) {
+								delete pp.Group[i];
+							}
+						}
+					}
+					
+					var params:URLVariables = new URLVariables;
+					params['spot_id[]'] = s;
+					linkRPC.url = utils.Utils.get_url("/user_groups/remove_spots/" + ug_id);
+					linkRPC.send(params);
+				}	
+			}
+            
+            private function onDragExit( event:DragEvent ):void {
+                var dropTarget:ListBase=ListBase(event.currentTarget);   
+            	dropTarget.hideDropFeedback(event);
+            }	
+            
+            private function gsDragDrop(event:DragEvent):void {
+            	var s:Array = new Array;
+            	get_spots(spotList.selectedItem as XML,s);
+            	
+            	var gs:Array = new Array;
+            	get_spots(group_spots,gs);
+            	
+                var params:URLVariables = new URLVariables;
+                params['spot_id[]'] = new Array;
+                
+                for each(var si:String in s) {
+                	var exists:Boolean = false;
+                	for each(var gi:String in gs) {
+                		if(si == gi) {
+                			exists = true;
+                		}
+                	}
+                	if(!exists) params['spot_id[]'].push(si);
+                }
+                            
+                onDragExit(event);
+                spotList.selectedIndex = -1;
+              
+                if(params['spot_id[]'].length > 0) {
+                	linkRPC.url = Utils.get_url("/user_groups/link_spots/" + this.ug_id);
+                	linkRPC.send(params);
+                	utils.Utils.freeze(this,true);
+                }
+            }
+            
+            private function gsTrashDragEnter(event:DragEvent):void {
+				if((event.dragInitiator as Tree).id == "gSpotList") {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+					trashGlow.play([gsTrash]);
+				}
+			}
+			
+			public function show_user_inf(user:Object,event:MouseEvent):void {
+				users.selectedIndex = -1;
+				var userInfo:UserInfo = new UserInfo;
+				userInfo.ug_id = ug_id;
+				userInfo.user = user;
+				userInfo.users = accounts;
+				userInfo.callBack = save_user;
+				dispatchEvent(new PopupEvent(PopupEvent.POPUP,event,userInfo));
+			}
+			
+			private function save_user(user:Object):void {
+				var is_new:Boolean = true;
+				for each(var _user:Object in user_list) {
+					if(_user.id == user.id) {
+						is_new = false;
+						user_list.setItemAt(user, user_list.getItemIndex(_user));
+					}
+				}
+				
+				if(is_new) {
+					user_list.addItem(user);	
+					this.dispatchEvent(new UserEvent(user, "UserAdded"));
+				} else {
+					this.dispatchEvent(new UserEvent(user, "UserUpdated"));
+				}
+			}
+			
+            private function uTrashDragOver(event:DragEvent):void {
+            	utils.Utils.trashGrow(gsTrash, true);
+            	DragManager.showFeedback(DragManager.MOVE);
+            	trashGlow.play([uTrash]);	 	
+            }   
+            
+            private function uTrashDragExit(event:DragEvent):void {
+            	trashGlowOut.play([uTrash]);
+            	utils.Utils.trashGrow(uTrash, false);	 	
+            } 
+            
+            private function uTrashDragDrop(event:DragEvent):void {
+            	uTrashDragExit(event);
+            	utils.Alert.show("确定要删除所选用户吗?   ", "删除确认", Alert.YES|Alert.NO, this, doRemoveUsers, null, Alert.NO);
+            }
+            
+            private function doRemoveUsers(event:CloseEvent):void {
+				if (event.detail == Alert.YES) {
+					var params:URLVariables = new URLVariables;
+					params['id[]'] = new Array();
+					for each(var item:Object in users.selectedItems) {
+						user_list.removeItemAt(user_list.getItemIndex(item));
+						params['id[]'].push(item.id);
+						this.dispatchEvent(new UserEvent(item, "UserRemoved"));	
+					}
+					userRPC.url = utils.Utils.get_url("/users/remove");
+					userRPC.send(params);
+				}	
+			}
+            private function uTrashDragEnter(event:DragEvent):void {
+				if((event.dragInitiator as DataGrid).id == "users" && event.dragSource.hasFormat("items")) {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+					trashGlow.play([uTrash]);
+				}
+			}
+			
+			private function isGroup(node:XML):Boolean {
+				return node.localName().toString() != "Spot";
+			}
+			
+			private function set_icon(item:Object):* {
+				//var group_root:XML = spots.Group.(@parent=="1")[0];
+				//if(item.@id == group_root.@id) return Icons.HOME;
+				if(item.@parent == "1") return Icons.HOME;
+				if(isGroup(item as XML)) {
+					return spotList.isItemOpen(item)? spotList.getStyle('folderOpenIcon'):spotList.getStyle('folderClosedIcon');
+				} else return Icons.MONITOR;		
+			}
+			
+			private function set_icon1(item:Object):* {
+				if(group_spots.children().length() == 0) {
+					return Icons.HOME;
+				}
+				//var root:XML = group_spots.Group[0];
+				//if(item.@id == root.@id) return Icons.HOME;
+				if(((item as XML).parent() as XML).localName().toString() != "Group") return Icons.HOME;
+				if(isGroup(item as XML)) {
+					return gSpotList.isItemOpen(item)? gSpotList.getStyle('folderOpenIcon'):gSpotList.getStyle('folderClosedIcon');
+				} else 
+					return Icons.MONITOR;		
+			}
+			
+			private function labelFunction(item:XML):String {
+				if(isGroup(item)) {
+					var gl:Number = item.child('Group').length();
+					var g:String = "";
+					if(gl > 0) g = "组:" + gl + ",";
+					return item.@name + " (" + g + "点" + item.child('Spot').length() + ")";
+				}
+				return item.@name;
+			}
+			
+			private function resetGroupSpots(event:ResultEvent):void {
+				group_spots = XML(event.result);
+				utils.Utils.freeze(this,false);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Glow id="trashGlow" duration="1000" 
+        alphaFrom="1.0" alphaTo="0.5" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="50.0" 
+        color="0x00FF80" repeatCount="10000"/>
+    <mx:Glow id="trashGlowOut" duration="1000" 
+        alphaFrom="0.5" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="50.0" 
+        color="0x00FF80" effectStart="trashGlow.stop()"/>
+	
+	<mx:HTTPService id="ugRPC" showBusyCursor="true" result="set_ug(event)" resultFormat="xml"/>
+	<mx:HTTPService id="groupRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" result="utils.Utils.freeze(this,false)"/>
+	<mx:HTTPService id="linkRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" result="resetGroupSpots(event)" resultFormat="xml"/>
+	<mx:HTTPService id="userRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" result="utils.Utils.freeze(this,false)"/>
+	
+	<mx:HBox width="100%" height="100%" horizontalGap="3">
+		<mx:Canvas width="260" height="100%" styleName="menu" borderSides="left right bottom">
+			<mx:VBox y="25" x="0" width="100%" height="100%">
+				<mx:DataGrid id="users" width="100%" height="100%"
+					dataProvider="{user_list}" dragEnabled="true" allowMultipleSelection="true"
+					dragMoveEnabled="false"
+					doubleClickEnabled="true" doubleClick="users.selectedIndex = -1"
+					rowHeight="22" headerHeight="22">
+					<mx:columns>
+						<mx:DataGridColumn headerText="姓名" dataField="realname"/>
+						<mx:DataGridColumn headerText="登录账号" dataField="account"/>
+						<mx:DataGridColumn headerText="" sortable="false" width="60">
+							<mx:itemRenderer>
+								<mx:Component>
+									<mx:HBox horizontalAlign="center">
+										<mx:Label text="修改" click="outerDocument.show_user_inf(data,event)" useHandCursor="true" buttonMode="true" mouseChildren="false"/>
+									</mx:HBox>
+								</mx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+					</mx:columns>
+				</mx:DataGrid>
+				<mx:HBox width="100%" verticalAlign="bottom" 
+					paddingBottom="5" paddingTop="5" paddingLeft="5" paddingRight="5">
+					<mx:Button label="添加" click="show_user_inf(new Object(),event)"/>
+					<mx:Spacer width="100%"/>
+					<mx:Image id="uTrash" width="32" height="32" toolTip="将用户从用户列表拖放到此处删除用户" 
+						source="{utils.Utils.trash_icon}"
+						dragEnter="uTrashDragEnter(event)"
+						dragOver="uTrashDragOver(event)"
+					 	dragExit="uTrashDragExit(event)"
+					 	dragDrop="uTrashDragDrop(event)">
+					</mx:Image>
+				</mx:HBox>
+			</mx:VBox>
+			<views:StyleTitle text="组用户"/>	
+		</mx:Canvas>
+		<mx:Canvas id="gSpotsPanel" width="50%" height="100%" styleName="menu" borderSides="left right bottom">
+			<mx:VBox y="25" x="0" width="100%" height="100%">
+				<views:Search tree="{gSpotList}" xml="{group_spots}" paddingLeft="10"/>
+				<mx:Tree id="gSpotList" width="100%" 
+					height="100%" labelFunction="{labelFunction}" openItems="{group_spots..Group}"
+					dataProvider="{group_spots}" showRoot="false" iconFunction="set_icon1"
+					dragEnabled="true" allowMultipleSelection="false"
+					dragOver="gsDragOver(event)"
+					dragEnter="gsDragEnter(event)"
+					dragMoveEnabled="false"
+					doubleClickEnabled="true" doubleClick="gSpotList.selectedIndex = -1"
+					rowHeight="18"
+				    dragExit="onDragExit(event)" dragDrop="gsDragDrop(event)"/>
+				<mx:HBox width="100%" paddingBottom="5" paddingTop="5" paddingLeft="5" paddingRight="5" horizontalAlign="right">
+					<mx:Image id="gsTrash" width="32" height="32" 
+						dragEnter="gsTrashDragEnter(event)"
+						dragOver="gsTrashDragOver(event)"
+					 	dragExit="gsTrashDragExit(event)"
+					 	dragDrop="gsTrashDragDrop(event)"
+						toolTip="将可操作监控点从监控点列表拖放到此处删除可操作监控点" source="{utils.Utils.trash_icon}">							
+					</mx:Image>
+				</mx:HBox>
+			</mx:VBox>
+			<views:StyleTitle text="本组监控点"/>		
+		</mx:Canvas>
+		<mx:Canvas id="spotsPanel" width="50%" height="100%" styleName="menu" borderSides="left right bottom">
+			<mx:VBox y="25" x="0" width="100%" height="100%">
+				<views:Search tree="{spotList}" xml="{spots}" paddingLeft="10"/>
+				<mx:Tree width="100%" height="100%" id="spotList" 
+					dataProvider="{spots}" labelFunction="{labelFunction}" openItems="{spots..Group}"
+					iconFunction="set_icon" showRoot="false"
+					dragEnabled="true"
+					allowMultipleSelection="false"
+					rowHeight="18"/>
+			</mx:VBox>
+			<views:StyleTitle text="所有监控点"/>
+		</mx:Canvas>
+	</mx:HBox>	
+</mx:Canvas>

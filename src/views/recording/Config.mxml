@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="400" height="200" title="录像设置"
+	xmlns:u="utils.*" 
+	xmlns:v="views.*" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import utils.*;
+			import utils.Config;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.managers.PopUpManager;
+			
+			[Bindable]
+			private var conf:XML;
+			
+			public function init():void{
+				readRPC.url = Utils.get_url("/record_conf/read");
+				readRPC.send();
+			}
+			
+			private function set_conf(event:ResultEvent):void {
+				conf = XML(event.result);
+			}
+			
+			private function save():void {
+				var c:XML = <Record/>;
+				c.root = rootpath.text;
+				c.maxlength = maxlength.text;
+				var params:URLVariables = new URLVariables;
+				params['xml'] = c.toXMLString();
+				saveRPC.url = Utils.get_url("/record_conf/save");
+				saveRPC.send(params);	
+			}
+		]]>
+	</mx:Script>	
+	
+	<mx:HTTPService id="readRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" 
+		result="set_conf(event)" resultFormat="xml"/> 
+	<mx:HTTPService id="saveRPC" useProxy="false" method="POST" showBusyCursor="true" result="close()"/>
+	<mx:VBox width="100%" horizontalAlign="center">
+		<mx:Spacer height="10"/>
+		<mx:Form defaultButton="{submit}" horizontalCenter="0">
+			<mx:FormItem label="文件根路径" required="true">
+				<mx:TextInput id="rootpath" text="{conf.root}"/>
+			</mx:FormItem>
+			<mx:FormItem label="单个文件最大长度({分钟)" required="true">
+				<mx:TextInput id="maxlength" text="{conf.maxlength}"/>
+			</mx:FormItem>
+		</mx:Form>
+		<mx:Spacer height="100%"/>
+		<mx:HBox horizontalAlign="center" width="100%">
+			<mx:Button label="保存" id="submit" click="save()"/>
+			<mx:Button label="关闭" click="close()"/>
+		</mx:HBox>
+	</mx:VBox>
+</v:TitleWin>

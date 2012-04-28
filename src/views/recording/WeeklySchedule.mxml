@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	xmlns:recording="views.recording.*"
+	xmlns:views="views.*" 
+	width="100%" height="100%" x="0" y="0">
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import utils.Utils;
+			import mx.controls.Alert;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			public function init():void {
+				startH.selectedIndex = 0;
+				startM.selectedIndex = 0;
+				endH.selectedIndex = 0;
+				endM.selectedIndex = 0;
+				lastTime.text = "持续时间:1440分钟";
+				state.selected = true;
+				
+				for each(var c:CheckBox in days) {
+					c.selected = false;
+				}	
+				randomColor.selected = true;
+			}
+			
+			private function saveSchedule(event:MouseEvent):void {
+				var ds:Array = new Array;
+				for(var i:Number = 0; i < days.length; i++) {
+					var c:CheckBox = days[i];
+					if(c.selected) {
+						ds.push(i);
+					}
+				}
+				
+				if(ds.length == 0) {
+					utils.Alert.show("请选择计划执行时间","错误");
+					return;
+				}
+				
+				if(last <= 0) {
+					utils.Alert.show("结束时间应该晚于开始时间", "错误");
+					return;
+				}	
+				var color:Object = null;
+				if(customize.selected) color = this.color.selectedColor;
+				schedule.addItems(ds, startH.selectedLabel, startM.selectedLabel, endH.selectedLabel, 
+					endM.selectedLabel, last, state.selected, color);
+			}
+			
+			private var last:Number;
+			private function calLastTime():void {
+				var s:Date = new Date("2010/01/01 " + startH.selectedLabel + ":" + startM.selectedLabel);
+				var e:Date;
+				if(endH.selectedLabel == "00" || endH.selectedLabel == '0') {
+					e = new Date("2010/01/02 00:00");
+				} else {
+					e = new Date("2010/01/01 " + endH.selectedLabel + ":" + endM.selectedLabel);
+				}
+				last = (e.valueOf() - s.valueOf()) / 1000 / 60;
+				lastTime.text = "持续时间:" + last.toString() + "分钟";		
+			}
+			
+			private function selectAll(b:Boolean, event:MouseEvent):void {
+				for each(var c:CheckBox in days) {
+					c.selected = b;
+				}
+			}
+			
+			private function removeSchedule(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					var item:ScheduleItem = trash.src as ScheduleItem;
+					schedule.removeItem(item);
+				}
+			}
+			
+			private function confirmRemoveAll(event:MouseEvent):void {
+				utils.Alert.show("确定删除所有周计划吗?        ", "删除确认", Alert.YES|Alert.NO, this, removeAll, null, Alert.NO);
+			}
+			
+			private function removeAll(event:CloseEvent):void {
+				if(event.detail == Alert.YES)
+					schedule.removeAllItems();
+			}
+		]]>
+	</mx:Script>
+	<mx:HBox width="100%" y="-2">
+		<mx:Spacer width="100%"/>
+		<mx:Canvas id="cEdit" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<mx:Button id="bRemove" label="删除全部周计划" click="confirmRemoveAll(event)"/>
+		</mx:Canvas>
+	</mx:HBox>
+	<mx:VBox x="0" y="25" width="100%" height="100%" paddingBottom="5">
+		<recording:Schedule id="schedule" x="0" y="0" height="100%"/>
+		<mx:HBox id="inf" styleName="board" width="100%" paddingLeft="5" 
+			horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingTop="5" paddingRight="5" verticalAlign="bottom">
+			<mx:VBox width="100%">
+				<mx:HBox width="100%">
+					<mx:Repeater id="rptD" dataProvider="{Schedule.days}">
+						<mx:CheckBox id="days" label="{rptD.currentItem}"/>
+					</mx:Repeater>
+					<mx:Button label="全选" click="selectAll(true,event)"/>
+					<mx:Button label="全不选" click="selectAll(false,event)"/>
+					<mx:Spacer width="10"/>
+					<mx:RadioButtonGroup id="colorType"/>
+					<mx:RadioButton id="randomColor" label="随机颜色" group="{colorType}" selected="true"/>
+					<mx:RadioButton id="customize" label="自定义颜色" group="{colorType}"/>	
+					<mx:ColorPicker id="color" click="customize.selected=true"/>
+				</mx:HBox>
+				<mx:HBox width="100%" verticalAlign="top">
+					<mx:Label text="开始时间"/>
+					<mx:ComboBox id="startH" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.hours}" width="60" rowCount="24"/>
+					<mx:Label text=":" width="10"/>
+					<mx:ComboBox id="startM" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.minutes}" width="60" rowCount="12"/>  
+					<mx:Label text="结束时间"/>
+					<mx:ComboBox id="endH" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.hours}" width="60" rowCount="24"/>
+					<mx:Label text=":" width="10"/>
+					<mx:ComboBox id="endM" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.minutes}" width="60" rowCount="12"/>
+					<mx:Label id="lastTime" text="持续时间:0分钟" color="haloOrange"/>
+					<mx:CheckBox label="启用" id="state" selected="true"/>
+					<mx:Button label="添加" click="saveSchedule(event)"/>
+				</mx:HBox>
+			</mx:VBox>
+			<views:Trash id="trash" srcClass="{ScheduleItem}" confirm="确定删除该录像计划吗?       " callBack="removeSchedule"/>
+		</mx:HBox>
+	</mx:VBox>
+</mx:Canvas>

@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%"
+	styleName="menu" borderSides="left right bottom"
+	xmlns:view="views.*" creationComplete="init()">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.formatters.DateFormatter;
+			import utils.Alert;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			
+			private var df:DateFormatter = new DateFormatter;
+			private var inited:Boolean = false;
+			
+			[Bindable]
+			private var hours:Array = new Array;
+			
+			private function init():void {
+				df.formatString = "YYYY-MM-DD HH:NN:SS";
+				var i:Number;
+				for(i = 0; i < 24; i++) {
+					hours.push((i < 10? "0":"") + i.toString() + ":00");
+				}
+				inited = true;
+				var now:Date = new Date;
+				date_from.text = df.format(now);
+				date_to.text = date_from.text;
+				hour_from.selectedIndex = now.getHours();
+				hour_to.selectedIndex = now.getHours() + 1;
+				get_data();
+			}
+			
+			public function get_data():void {
+				if(!inited) return;
+				var params:URLVariables = new URLVariables;
+				params.date_from = date_from.text;
+				params.date_to = date_to.text;
+				params.hour_from = hour_from.text;
+				params.hour_to = hour_to.text;
+				params.user_name = realname.text;
+				params.account = account.text;
+				logRPC.url = Utils.get_url("/logs");
+				logRPC.send(params);
+			}
+			
+			private function set_data(event:ResultEvent):void {
+				var logs:XML = XML(event.result);
+				list.dataProvider = logs.Log;		
+			}	
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="logRPC" useProxy="false" showBusyCursor="true" resultFormat="xml" result="set_data(event)"/>
+	<mx:VBox width="100%" height="100%" x="0" y="30">
+		<mx:HBox width="100%">
+			<mx:Label text="筛选条件"/>
+			<mx:Label text="时间"/>
+			<mx:DateField id="date_from" formatString="YYYY-MM-DD"/>
+			<mx:ComboBox id="hour_from" dataProvider="{hours}" width="80" rowCount="24"/>
+			<mx:Label text="到"/>
+			<mx:DateField id="date_to" formatString="YYYY-MM-DD"/>
+			<mx:ComboBox id="hour_to" dataProvider="{hours}" width="80" rowCount="24"/>
+			<mx:Label text="帐号"/>
+			<mx:TextInput id="account"/>
+			<mx:Label text="用户姓名"/>
+			<mx:TextInput id="realname"/>
+			<mx:Button label="查找" click="get_data()"/>
+		</mx:HBox>
+		<mx:DataGrid id="list" width="100%" height="100%">
+			<mx:columns>
+				<mx:DataGridColumn headerText="时间" dataField="time" width="150"/>
+				<mx:DataGridColumn headerText="帐号" dataField="account" width="150"/>
+				<mx:DataGridColumn headerText="用户姓名" dataField="username" width="150"/>
+				<mx:DataGridColumn headerText="操作" dataField="operation"/>
+			</mx:columns>
+		</mx:DataGrid>
+	</mx:VBox>
+	<view:StyleTitle text="操作日志"/>
+</mx:Canvas>

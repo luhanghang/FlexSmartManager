@@ -1,0 +1,382 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas label="Gateway" width="100%" height="100%" 
+	xmlns:mx="http://www.adobe.com/2006/mxml"
+	xmlns:u="utils.*" horizontalScrollPolicy="off"
+	xmlns:views="views.*"
+	xmlns:v="views.*" visible="false"
+	xmlns:pv3dEffects="ws.tink.flex.pv3dEffects.*" 
+	xmlns:gateway="views.gateway.*">
+	<mx:Metadata>
+		[Event(name="Modify")]
+		[Event(name="EndModify")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import events.SpotEvent;
+			import events.EncoderEvent;
+			import events.PopupEvent;
+			import mx.events.DragEvent;
+			import utils.UniqueIPValidator;
+			import utils.Utils;
+			import utils.Icons;
+			import utils.Config;
+			import mx.events.IndexChangedEvent;
+			import mx.events.CloseEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.controls.Alert;
+			import mx.rpc.events.ResultEvent;
+			import mx.controls.CheckBox;
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			import views.spot.SpotInfo;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import mx.core.Application;
+			import views.spot.SpotGroup;
+			import mx.utils.StringUtil;
+			
+//			[Bindable]
+//			public var gFilter:Array = [Utils.neonFilter()];
+			
+			[Bindable]
+			public var gw_id:String;
+			public var gateway:Object;
+			
+			[Bindable]
+			public var encoders:XML;
+			
+			[Bindable]
+			public static var DICTIONARY:XML;
+						
+			private function set_spot(spotData:Object, isNew:Boolean):void {
+				this.dispatchEvent(new Event("SpotAdded"));
+			}
+		
+			private function showError(event:FaultEvent):void {
+				utils.Alert.show("服务器忙，请稍后重试    ","错误");
+			}
+
+			private function labelFunc(item:XML):String {
+				if(item.localName().toString().indexOf("Company") == 0) {
+					return item.@name + " (编码器:" + item.children().length() + ",监控点:" + item.descendants('Spot').length() + ")";
+				}
+				if(item.localName().toString().indexOf("Encoder") == 0) {
+					return item.@name + " (监控点:" + item.children().length() + ")";
+				}	
+				return item.@name;
+			}
+			
+			private function iconFunc(item:XML):* {
+				if(item.localName().toString() == "Encoder") {
+					return Icons.ENCODER;		
+				}
+				
+				if(item.localName().toString() == "Spot") {
+					return Icons.MONITOR;		
+				}
+
+				return Icons.HOME;
+			}
+			
+			private var oldNode:XML;
+			private function treeClick():void {
+				var node:XML = deviceTree.selectedItem as XML;
+				if(node == oldNode) return;
+				oldNode = node;
+				toggleButton(node);
+				deviceTree.expandItem(node,true);
+				if(node.localName().toString() == "Company" || StringUtil.trim(node.@id) == "") {
+					infVS.visible = false;
+					return;
+				}
+				infVS.visible = true;
+				
+				if(node.localName().toString() == "Encoder") {
+					infTitle.text = "编码器信息";
+					infVS.selectedIndex = 0;
+					encoderInf.set_encoder(node);
+				} else {
+					infTitle.text = "监控点信息";
+					infVS.selectedIndex = 1;	
+					spotInf.set_spot(node.parent(),node);
+				}
+			}
+			
+			private function add_encoder():void {
+				bAddEncoder.enabled = false;
+				deviceTree.enabled = false;
+				dispatchEvent(new Event("Modify"));
+				
+				infVS.visible = true;
+				infVS.selectedIndex = 0;
+				var com_id:String;
+				var node:XML = deviceTree.selectedItem as XML;
+				if(node.localName().toString() == "Spot") {
+					node = node.parent() as XML;
+					node = node.parent() as XML;
+				}
+				encoderInf.com_id = StringUtil.trim(node.@id);
+				encoderInf.set_encoder(null);
+				glow.play();
+			}
+			
+			private function add_spot():void {
+				bAddSpot.enabled = false;
+				deviceTree.enabled = false;
+				dispatchEvent(new Event("Modify"));
+				glow.play();
+				infTitle.text = "监控点信息";
+				infVS.selectedIndex = 1;	
+				spotInf.set_spot(deviceTree.selectedItem as XML, null);	
+			}
+			
+			private function toggleButton(node:XML):void {
+//				if(StringUtil.trim(node.@id) == "") {
+//					buttons.selectedIndex = 0;
+//					return;
+//				}
+				if(node.localName().toString() == "Encoder") {
+					buttons.selectedIndex = 1;
+					return;
+				}
+				buttons.selectedIndex = 0;
+			}
+			
+			private function addEncoder(event:EncoderEvent):void {
+				var node:XML = deviceTree.selectedItem as XML;
+				if(node.localName().toString() == "Spot") {
+					node = node.parent() as XML;
+					node = node.parent() as XML;
+				}
+				node.appendChild(event.encoder);
+				Utils.expandParents(deviceTree,event.encoder);
+				deviceTree.selectedItem = event.encoder;
+				deviceTree.firstVisibleItem = event.encoder;
+				refresh_spots_count();
+				this.callLater(treeClick);
+				end_modify();
+			}
+			
+			private function addSpot(event:SpotEvent):void {
+				var node:XML = deviceTree.selectedItem as XML;
+				deviceTree.expandItem(node, true);
+				deviceTree.selectedItem = event.spot;
+				deviceTree.firstVisibleItem = event.spot;
+				refresh_spots_count();
+				this.callLater(treeClick);
+				end_modify();
+			}
+			
+			private function end_modify():void {
+				deviceTree.enabled = true;
+				try {
+					bAddSpot.enabled = true;
+				} catch(e) {
+					
+				}
+				try {
+					bAddEncoder.enabled = true;
+				} catch(e) {
+					
+				}
+				treeClick();
+				dispatchEvent(new Event("EndModify"));
+			}
+			
+			private function remove_device(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					deviceTree.enabled = false;
+					var node:XML = deviceTree.selectedItem as XML;
+					var params:URLVariables = new URLVariables;
+					if(node.localName().toString() == "Encoder") {
+						deviceRPC.url = Utils.get_url("/gateway/remove_encoder");
+					} else {
+						deviceRPC.url = Utils.get_url("/gateway/remove_spot");
+					}
+					params['id'] = node.@id;
+					deviceRPC.send(params);
+				}
+			}
+			
+			private function removeDevice(event:ResultEvent):void {
+					deviceTree.enabled = true;
+					if(event.result == "-1") {
+						Alert.show("网关未连接,不能删除      ","错误");
+						return;
+					}
+					var node:XML = deviceTree.selectedItem as XML;
+					var children:XMLList = node.parent().children();
+					deviceTree.selectedItem = node.parent();
+					for(var i:Number = 0; i <  children.length(); i++) {
+						if(children[i] == node) {
+							delete children[i];
+							refresh_spots_count();
+							this.callLater(treeClick);
+							return;
+						}	
+					}
+			}
+			
+			public function get_data():void {
+				this.visible = false;
+				if(gw_id == null) {
+					encoders = null;
+					return;	
+				}
+				gwRPC.url = utils.Utils.get_url("/gateway/get/" + gw_id)
+				gwRPC.send();
+			}
+			
+			public function init(event:ResultEvent):void {
+				encoders = XML(event.result);	
+				controlbar.visible = true;//Utils.getRole() == "admin";
+				controlbar.includeInLayout = controlbar.visible;	
+				refresh_spots_count();
+				callLater( function() {
+					 deviceTree.selectedIndex = 0;treeClick();
+				 });
+				//this.callLater(treeClick);
+				controlbar.visible = Utils.getRole() != 'mo';
+				this.visible = true;
+			}
+			
+			private function refresh_spots_count():void {
+				gateway.spots = encoders.descendants('Spot').length();
+				gateway.encoders = encoders.descendants('Encoder').length();
+				buttons.visible = Utils.getRole() == "su" || gateway.spots < gateway.capacity;
+			}
+			
+            private function onDragDrop(event:DragEvent):void {
+            	event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+                var node:XML = deviceTree.selectedItem as XML;
+                encoderRPC.url = Utils.get_url("/encoders/change_company/" + this._draggedItem.@id);
+                var params:URLVariables = new URLVariables;
+                params.company = (deviceTree.selectedItem as XML).@id;
+                encoderRPC.send(params);
+                this.parentApplication.enabled = false;
+                
+				var children:XMLList = XMLList(this._draggedItem.parent().children());
+                for(var i:int = 0 ; i < children.length(); i++) {
+                    if( children[i] == this._draggedItem ) {
+                        delete children[i];  //先从原组删除自己
+                        break;
+                    }
+                }
+                node.appendChild(this._draggedItem);
+            }
+            
+            private function onDragExit(event:DragEvent):void {
+            	event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+                deviceTree.selectedItem = this._draggedItem;	
+            }
+            
+            private function onDragComplete(event:DragEvent):void {
+            	onDragExit(event);
+            }
+            
+            private var _draggedItem:XML;
+            private function onDragStart(event:DragEvent):void {
+				_draggedItem = deviceTree.selectedItem as XML;
+				if(_draggedItem.localName().toString() == "Company") {
+					onDragExit(event);	
+				}
+			}
+			
+            private function onDragEnter( event:DragEvent ):void
+            {
+                event.preventDefault();
+                //event.currentTarget.showDropFeedback(event);
+                DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+            }
+
+            private function onDragOver( event:DragEvent ) : void {
+                event.preventDefault();
+                event.currentTarget.showDropFeedback(event);
+
+                if(_draggedItem.localName().toString() != "Encoder" ) {
+					DragManager.showFeedback(DragManager.NONE);
+                    return;
+				}
+				
+				deviceTree.selectedIndex = deviceTree.calculateDropIndex(event);
+                var node:XML = deviceTree.selectedItem as XML;
+                
+				if (_draggedItem.parent() == node) {
+					DragManager.showFeedback(DragManager.NONE);
+                    return;
+				}
+				
+				if(node.localName().toString() != "Company") {
+					DragManager.showFeedback(DragManager.NONE);
+                    return;
+				}
+
+                DragManager.showFeedback(DragManager.MOVE);
+            }
+            
+            private function encoder_changed(event:ResultEvent):void {
+            	Utils.expandParents(deviceTree,this._draggedItem);
+            	deviceTree.selectedItem = this._draggedItem;
+            	treeClick();
+            	this.parentApplication.enabled = true;
+            	
+            }
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="gwRPC" resultFormat="xml" showBusyCursor="true" result="init(event)"/>
+	<mx:HTTPService id="deviceRPC" useProxy="false" method="POST" showBusyCursor="true" 
+		resultFormat="text" result="removeDevice(event)"/>
+	<mx:HTTPService id="encoderRPC" 
+		useProxy="false" method="GET" showBusyCursor="true" result="encoder_changed(event)"/>	
+
+	<!--
+	<pv3dEffects:Cache id="hideFlip" transparent="true"/>
+    <pv3dEffects:Cube id="showFlip" constrain="true" transparent="true" direction="right" duration="500"/>
+    -->
+    
+    <mx:Glow id="glow" target="{infVS}" repeatCount="3"/>
+    
+	<mx:HBox width="100%" height="100%" horizontalGap="5">
+		<mx:Canvas width="400" height="100%" left="10" styleName="menu" 
+			borderSides="left right bottom" verticalScrollPolicy="off" horizontalScrollPolicy="off"> 
+			<mx:VBox x="0" y="25" width="100%" height="100%" verticalGap="1">
+				<views:Search tree="{deviceTree}" xml="{encoders}" paddingLeft="20"/>	
+				<mx:Tree id="deviceTree" width="100%" height="100%" dataProvider="{encoders}"   
+					showRoot="false" labelFunction="labelFunc" rowHeight="20" iconFunction="iconFunc" 
+					openItems="{encoders}" click="treeClick()" dragEnabled="true" dragMoveEnabled="false"
+					dropEnabled="true" dragDrop="onDragDrop(event)" dragOver="onDragOver(event)"
+		  			dragEnter="onDragEnter(event)" dragComplete="onDragComplete(event)"
+		  			dragStart="onDragStart(event)" dragExit="onDragExit(event)"
+				/>
+				
+				<mx:HBox id="controlbar" width="100%" verticalAlign="bottom" paddingBottom="5" paddingLeft="5" paddingRight="5" paddingTop="5">
+					<mx:ViewStack id="buttons">
+						<mx:Canvas>
+							<mx:Button id="bAddEncoder" label="添加编码器" click="add_encoder()"/>
+						</mx:Canvas>
+						<mx:Canvas>
+							<mx:Button id="bAddSpot" label="添加监控点" click="add_spot()"/>
+						</mx:Canvas>
+					</mx:ViewStack>
+					<mx:Spacer width="100%"/>
+					<v:Trash src="{deviceTree}" confirm="确定要删除?             " callBack="remove_device" excludeTags="{['Company']}"/>
+				</mx:HBox>	
+			</mx:VBox>
+			<v:StyleTitle id="dgTitle" text="设备列表"/>
+		</mx:Canvas>
+		
+		<mx:Canvas width="400" height="100%" styleName="menu" 
+			borderSides="left right bottom" verticalScrollPolicy="off" horizontalScrollPolicy="off">
+			<mx:ViewStack id="infVS" width="100%" height="100%" visible="false">
+				<gateway:EncoderInf Added="addEncoder(event)" cancelEdit="end_modify()" 
+					id="encoderInf" DEVICES="{DICTIONARY.Devices.Device}" 
+					encoders="{encoders.Encoder}" gw_id="{gw_id}"/>
+				<gateway:SpotInfo id="spotInf" Added="addSpot(event)" cancelEdit="end_modify()"/>
+			</mx:ViewStack>
+			<v:StyleTitle id="infTitle" text="编码器信息"/>
+		</mx:Canvas>	
+	</mx:HBox>
+</mx:Canvas>

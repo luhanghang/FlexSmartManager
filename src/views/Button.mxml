@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml" buttonMode="true" rollOver="this.styleName='buttono'" 
+	rollOut="this.styleName='button';" 
+	useHandCursor="true" xmlns:u="utils.*" styleName="button" backgroundSize="100%" backgroundAlpha="1">
+	<mx:Script>
+		<![CDATA[
+			import utils.Utils;
+		
+			[Bindable]
+			public var text:String;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+		]]>
+	</mx:Script>
+	
+	<mx:Label text="{text}" buttonMode="true" useHandCursor="true" mouseChildren="false"/>
+</mx:HBox>

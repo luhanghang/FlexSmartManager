@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" 
+	creationComplete="init()" verticalGap="-1">
+	<mx:Metadata>
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import events.PopupEvent;
+			import mx.collections.ArrayCollection;
+			import utils.Utils;
+			import mx.managers.PopUpManager;
+			import mx.core.Application;
+			import mx.core.DragSource;
+			import mx.managers.DragManager;
+			import mx.utils.StringUtil;
+		
+			[Bindable]
+			public var group:Object;
+			
+			[Bindable]
+			public var groups:ArrayCollection;
+			
+			[Bindable]
+			public var w:Number;
+			[Bindable]
+			public var h:Number;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			public var is_selected:Boolean = false;
+			
+			private function init():void {
+				h = inf.height;
+				b.x = width - b.width + 2;
+				b.visible = group.id != '0' && group.id != '1';
+				c.includeInLayout = b.visible;
+			}
+			
+			private function showInf():void {
+				inf.visible = true;
+				inf.includeInLayout = true;
+			} 
+			
+			public function selected(s:Boolean):void {
+				is_selected = s;
+				menuItem.selected(s);
+				inf.visible = s;
+				inf.includeInLayout = s;
+			}
+			
+			private var infScreen:GroupInfo;
+			private function showGroupInfo(event:MouseEvent):void {
+				infScreen = new GroupInfo;
+				infScreen.groups = groups;
+				infScreen.group = group;
+				infScreen.g_id = group.id;
+				infScreen.callBack = set_group;
+				this.dispatchEvent(new PopupEvent("Popup", event, infScreen));
+			}
+			
+			private function set_group(_group:Object):void {
+				group = _group;
+				menuItem.text = group.name;
+				group_name.text = group.name;
+			}
+			
+			private function MouseMove(event:MouseEvent):void {
+				if(StringUtil.trim(group.role) == 'admin') return;
+				var ds:DragSource = new DragSource
+	            ds.addData(group,"group");
+
+	            var canvasProxy:UserGroupItem = new UserGroupItem;
+	            canvasProxy.group = group;
+	            canvasProxy.width = width;
+	            DragManager.doDrag(this, ds, event, canvasProxy);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Resize id="resize" heightFrom="0" heightTo="{h}" duration="200"/> 
+	<mx:Resize id="fold" heightFrom="{h}" heightTo="0" duration="200"/>
+	
+	<MenuItem id="menuItem" icon_="users.png" width="100%" text="{group.name}" click="showInf()" mouseMove="MouseMove(event)"/>
+	<mx:Canvas id="inf" width="100%" styleName="menu" visible="false" 
+		includeInLayout="false" showEffect="{resize}" hideEffect="{fold}" 
+		verticalScrollPolicy="off" horizontalScrollPolicy="off">
+		<Button text="修改" width="60" y="-2" id="b" click="showGroupInfo(event)"/>
+		<mx:VBox x="0" y="0" verticalGap="0" width="100%">
+			<mx:Canvas id="c" height="20"/>
+			<mx:Form x="0" y="0" width="100%" height="100%" verticalGap="1">
+				<mx:FormItem label="名称">
+					<mx:Label id="group_name" text="{group.name}"/>
+				</mx:FormItem>
+				<mx:FormItem label="角色">
+					<mx:Label text="{group.alias}"/>
+				</mx:FormItem>
+				<!--
+				<mx:FormItem label="级别">
+					<mx:Label text=""/>
+				</mx:FormItem>
+				<mx:FormItem label="权限">
+					<mx:Label text=""/>
+				</mx:FormItem>
+				-->
+			</mx:Form>
+		</mx:VBox>
+	</mx:Canvas>
+</mx:VBox>

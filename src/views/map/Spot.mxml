@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" 
+	useHandCursor="true" buttonMode="true" horizontalScrollPolicy="off" 
+	toolTip="{spot.@name}" backgroundAlpha="0" verticalScrollPolicy="off"
+	removedEffect="{fadeOut}" creationCompleteEffect="{fadeIn}">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.core.DragSource;
+			import mx.managers.DragManager;
+			
+			[Bindable]
+			public var callBack:Function;
+			
+			[Bindable]
+			public var spot:XML;
+			
+			private function MouseMove(event:MouseEvent):void {
+				var ds:DragSource = new DragSource
+	            ds.addData(event.localX,"x");
+	            ds.addData(event.localY, "y");
+
+	            var canvasProxy:Spot = new Spot;
+	            canvasProxy.spot = spot;
+	            canvasProxy.width = width;
+	            canvasProxy.callBack = callBack;
+	            DragManager.doDrag(this, ds, event, canvasProxy);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Glow id="glow" duration="1000" 
+        alphaFrom="0.5" alphaTo="0.5" 
+        blurXFrom="0.0" blurXTo="30.0" 
+        blurYFrom="0.0" blurYTo="30.0" 
+        color="0xFF0000" repeatCount="10000"/> 
+    <mx:Glow id="glowOut" duration="1000" 
+        alphaFrom="0.5" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="30.0" 
+        blurYFrom="0.0" blurYTo="30.0" 
+        color="0xFF0000" effectStart="glow.stop()"/>
+	
+	<mx:Fade id="fadeIn" alphaFrom="0" alphaTo="1" duration="500"/>
+	<mx:Fade id="fadeOut" alphaFrom="1" alphaTo="0"  duration="500"/>
+	
+	<mx:Image x="0" y="45" source="assets/monitor_icon.png" mouseMove="MouseMove(event)" rollOutEffect="{glowOut}" rollOverEffect="{glow}" 
+		mouseDown="callBack.call(parent, true)" mouseUp="callBack.call(parent, false)"/>
+	<mx:Canvas id="s_name" x="0" y="0" width="115" height="50" 
+		horizontalScrollPolicy="off" verticalScrollPolicy="off">
+		<mx:Image x="0" y="0" source="assets/tips.png"/>
+		<mx:Label width="100" color="#000000" x="5" y="5" text="{spot.@name}"/>
+	</mx:Canvas>
+</mx:Canvas>

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="296" height="186" title="修改密码"
+	creationComplete="init()" xmlns:v="views.*" xmlns:utils="utils.*">
+	<mx:Script>
+	<![CDATA[
+		import mx.effects.Fade;
+		import mx.managers.PopUpManager;
+		import mx.core.ScrollPolicy;
+		import utils.Utils;
+		
+		private function init():void{
+			formValidator.addValidators(validators);
+			formValidator.failedCallBack=function():void{
+				submit.enabled=false;
+			};
+			formValidator.passedCallBack=function():void{
+				submit.enabled=true;
+			};
+		}
+		
+		private function pre_submit():void {
+			if(passwd.text != passwd1.text) {
+				errorTip.visible = true;
+				return;
+			}	
+			gwRPC.url = Utils.get_url("/users/change_passwd");	
+			gwRPC.send();
+		}
+	]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="gwRPC" result="close()" useProxy="false" method="POST" showBusyCursor="true">
+		<mx:request xmlns="">
+			<passwd>
+				{passwd.text}
+			</passwd>
+		</mx:request>
+	</mx:HTTPService>
+
+	<mx:Array id="validators">
+		<utils:PasswordValidator required="true" source="{passwd}" property="text" requiredFieldError="请输入新密码"/>	
+	</mx:Array>
+	
+	<mx:Fade id="fadeIn" alphaFrom="0" alphaTo="1" duration="500"/>
+	
+	<mx:Form defaultButton="{submit}" x="0" y="0" width="100%" height="110">
+		<mx:FormItem label="新密码">
+			<mx:TextInput id="passwd" displayAsPassword="true"/>
+		</mx:FormItem>
+		<mx:FormItem label="再输入一次">
+			<mx:TextInput id="passwd1" displayAsPassword="true"/>
+		</mx:FormItem>
+		<mx:FormItem>
+			<mx:Label text="两次输入的密码不匹配" color="haloOrange" visible="false" id="errorTip" showEffect="{fadeIn}"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="保存" id="submit" enabled="false" click="pre_submit()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+	
+</v:TitleWin>

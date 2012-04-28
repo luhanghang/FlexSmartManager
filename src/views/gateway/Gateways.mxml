@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%"
+	xmlns:gateway="views.gateway.*" xmlns:views="views.*">
+	<mx:Metadata>		
+		[Event(name="Popup",type="events.PopupEvent")]
+		[Event(name="ReloadSpots")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import events.PopupEvent;
+			import mx.events.CloseEvent;
+			import views.MenuItem;
+			import utils.Alert;
+			import utils.Utils;
+			import mx.events.ItemClickEvent;
+			import mx.utils.ObjectProxy;
+			import utils.Config;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import views.gateway.GatewayItem;
+			
+			[Bindable]
+			public static var gw_array:ArrayCollection = new ArrayCollection;
+			[Bindable]
+			public static var apply_enabled:Boolean = true;
+			public static var enable_apply:Boolean = true;
+			//[Bindable]
+			//private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			private var gtimer:Timer;
+			
+			public function init():void {
+				controlbar.visible = Utils.getRole() == "su";
+				gwRPC.url = utils.Utils.get_url("/gateway/all");
+				gwRPC.send();	
+			}
+			
+			private function init_gw_tab(event:ResultEvent):void {
+				this.visible = true;
+				if(!event.result.gateways) return;
+				gw_array = new ArrayCollection();
+				if(event.result.gateways.gateway is ObjectProxy) {
+					gw_array.addItem(event.result.gateways.gateway);
+				} else {
+					gw_array = event.result.gateways.gateway;
+				}
+				
+				if(gw_array.length > 0) {
+					set_gateway(gw_array.getItemAt(0));
+					panel.visible = true;
+				}
+				gtimer = new Timer(1000);
+				gtimer.addEventListener(TimerEvent.TIMER, query_apply);
+				gtimer.start();
+			}
+					
+			private function set_gateway(gw:Object):void {
+				if(gw == null) {
+					gw_panel.gw_id == null;
+				} else {
+					gw_panel.gw_id = gw.id;
+					gw_panel.gateway = gw;
+					oldGW = gw;
+				}
+				gw_panel.get_data();	
+			}
+			
+			private var oldGW:Object;
+			private function menuClick(event:MouseEvent):void {
+				var item:GatewayItem = event.currentTarget as GatewayItem;
+				if(oldGW == item.gateway) return;
+				oldGW = item.gateway;
+				menuSelect(item.gateway);
+			}
+			
+			private function menuSelect(gw:Object):void {
+				for each(var _item:GatewayItem in menuItems.getChildren()) {
+					_item.selected(_item.gateway.id == gw.id);	
+				}
+				set_gateway(gw);
+				panel.visible = true;
+			}
+			
+			private function remove_gateway(event:CloseEvent):void {
+				if(event.detail != mx.controls.Alert.YES) return;
+				var g:Object = trash.src.gateway;
+				gwRemoveRPC.url = Utils.get_url("/gateway/destroy/" + g.id);
+				gwRemoveRPC.send();
+				gw_array.removeItemAt(gw_array.getItemIndex(g));
+				gateway_removed();	
+			}
+			
+			private function gateway_removed():void {
+				panel.visible = false;	
+				//dispatchEvent(new Event("ReloadSpots"));
+				//this.parentApplication.get_spot_groups();
+				//this.parentApplication.get_spot_names();
+			}
+			
+			private function add_gateway(event:MouseEvent):void {
+				var add:AddGateway = new AddGateway;
+				add.gateways = gw_array;
+				add.callBack = addGateway;
+				dispatchEvent(new PopupEvent("Popup", event, add));		
+			}
+			
+			private function toggleApply(event:MouseEvent):void {
+				gtimer.stop();	
+				applyRPC.url = Utils.get_url("/gateway/toggle_apply/" + (!enable_apply?"1":"0"));
+				applyRPC.send();
+			}
+			
+			private function toggle_apply_button(event:ResultEvent):void {
+				var result:Boolean = String(event.result) == "1";
+				if(result != enable_apply) {
+					enable_apply = result;
+					bToggleApply.label = enable_apply? '禁止应用新设置':'允许应用新设置';
+					apply_enabled = Utils.getRole() == "su"? true:result;
+					//for each(var _item:GatewayItem in menuItems.getChildren()) {
+					//	_item.toggle_apply(enable_apply);	
+					//}
+				}
+				gtimer.start();
+			}
+			
+			private function addGateway(gw:Object):void {
+				var n:Number = menuItems.numChildren;
+				gw_array.addItem(gw);
+				//dispatchEvent(new Event("ReloadSpots"));
+				//this.parentApplication.get_spot_groups();
+				//this.parentApplication.get_spot_names();
+				var timer:Timer = new Timer(100);
+				timer.addEventListener(TimerEvent.TIMER, function():void {
+					if(n < menuItems.numChildren) {
+						menuSelect(gw);
+						timer.stop();
+					}
+				});
+				timer.start();	
+			}
+			
+			public function on_exit():void {
+				this.visible = false;
+				gw_panel.visible = false;
+				for each(var _item:GatewayItem in menuItems.getChildren()) {
+					_item.timer.stop();	
+				}
+				gtimer.stop();
+			}
+			
+			private function query_apply(event:TimerEvent):void {
+				gtimer.stop();
+				applyRPC.url = Utils.get_url("/gateway/query_apply");
+				applyRPC.send();
+			}
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="gwRPC" result="init_gw_tab(event)"/>
+	<mx:HTTPService id="gwRemoveRPC" showBusyCursor="true" result="gateway_removed()"/>
+	<mx:HTTPService id="applyRPC" resultFormat="text" result="toggle_apply_button(event)"/>
+	
+	<mx:Fade id="fadeIn" alphaFrom="0" alphaTo="1"/>
+	<mx:Fade id="fadeOut" alphaFrom="1" alphaTo="0"/>
+	
+	<mx:HBox width="100%" height="100%">
+		<mx:Canvas styleName="menu" width="300"
+			horizontalScrollPolicy="off" height="100%" borderSides="left right bottom">
+			<mx:VBox height="100%" y="25" width="100%">
+				<mx:Canvas id="items" height="100%" width="100%"
+					horizontalScrollPolicy="off" verticalScrollBarStyleName="scrollBar">
+					<mx:VBox id="menuItems" width="100%" height="100%" verticalGap="3" paddingLeft="5" paddingRight="5" 
+						disabledOverlayAlpha="0">
+						<mx:Repeater id="rpt" dataProvider="{gw_array}" >
+							<gateway:GatewayItem isSelected="{rpt.currentIndex == 0}" 
+								gateway="{rpt.currentItem}" click="menuClick(event);" 
+								width="100%" Popup="this.dispatchEvent(event)" gateways="{gw_array}"/>
+						</mx:Repeater>
+					</mx:VBox>
+				</mx:Canvas>
+				<mx:HBox id="controlbar" width="100%" paddingLeft="5" paddingBottom="5" paddingRight="5" verticalAlign="bottom">
+					<mx:Button id="bAddGateway" label="添加网关" click="add_gateway(event)"/>
+					<mx:Button id="bToggleApply" label="禁止应用新设置" click="toggleApply(event)"/>
+					<mx:Spacer width="100%"/>
+					<views:Trash id="trash" srcClass="{views.gateway.GatewayItem}" confirm="确定删除该网关?      " callBack="remove_gateway"/>	
+				</mx:HBox>
+			</mx:VBox>
+			<views:StyleTitle text="网关列表"/>
+		</mx:Canvas>
+		<mx:Canvas id="panel" width="100%" height="100%" showEffect="{fadeIn}" hideEffect="{fadeOut}">
+			<gateway:Gateway id="gw_panel" visible="false" width="100%" height="100%" Modify="menuItems.enabled=false" EndModify="menuItems.enabled=true"/>
+		</mx:Canvas>
+	</mx:HBox>
+</mx:Canvas>

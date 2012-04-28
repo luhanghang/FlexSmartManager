@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%" x="0" y="0"
+	xmlns:recording="views.recording.*"
+	xmlns:views="views.*"  horizontalScrollPolicy="off" verticalScrollPolicy="off">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.DragEvent;
+			import mx.events.CloseEvent;
+			import utils.Utils;
+			import mx.controls.Alert;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			public function init():void {
+				date.text = "";	
+				startH.selectedIndex = 0;
+				startM.selectedIndex = 0;
+				endH.selectedIndex = 0;
+				endM.selectedIndex = 0;
+				lastTime.text = "持续时间:1440分钟";
+				state.selected = true;	
+				randomColor.selected = true;
+			}
+			
+			private function saveSchedule(event:MouseEvent):void {
+				if(date.text == '') {
+					utils.Alert.show("请选择计划执行时间", "错误");
+					return;		
+				}
+				
+				var s:Date = new Date(Utils.StringReplaceAll(date.text,"-","/") + " " + startH.selectedLabel + ":" + startM.selectedLabel);
+				var now:Date = new Date();
+				
+				if(s.valueOf() - now.valueOf() < 0) {
+					utils.Alert.show("计划执行时间应该晚于当前时间", "错误");
+					return;
+				}
+				
+				if(last <= 0) {
+					utils.Alert.show("结束时间应该晚于开始时间", "错误");
+					return;
+				}	
+				var color:Object = null;
+				if(customize.selected) color = this.color.selectedColor;
+				schedule.addItem(date.text, startH.selectedLabel, startM.selectedLabel, endH.selectedLabel, 
+					endM.selectedLabel, last, state.selected, color);
+			}
+			
+			private var last:Number;
+			private function calLastTime():void {
+				var s:Date = new Date("2010/01/01 " + startH.selectedLabel + ":" + startM.selectedLabel);
+				var e:Date;
+				if(endH.selectedLabel == '00' || endH.selectedLabel == '0') {
+					e = new Date("2010/01/02 00:00");	
+				} else {
+					e = new Date("2010/01/01 " + endH.selectedLabel + ":" + endM.selectedLabel);
+				}
+				last = (e.valueOf() - s.valueOf()) / 1000 / 60;
+				lastTime.text = "持续时间:" + last.toString() + "分钟";		
+			}
+			
+			private function removeSchedule(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					var item:ScheduleItemDaily = _removeItem as ScheduleItemDaily;
+					schedule.removeItem(item);
+				}
+			}
+			
+			private function removeAll(event:CloseEvent):void {
+				if(event.detail == Alert.YES){}
+					schedule.removeAllItems(_removeItem.date);
+			}
+			
+			private function DragEnter(event:DragEvent):void {
+            	if(event.dragInitiator is ScheduleDayDaily || event.dragInitiator is ScheduleItemDaily) {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+					glow.play();
+				}
+			}
+			
+			protected function DragOver(event:DragEvent):void {
+            	utils.Utils.trashGrow(trash, true);
+            	DragManager.showFeedback(DragManager.MOVE);
+            	glow.play();	 	
+            }   
+            
+            protected function DragExit(event:DragEvent):void {
+            	utils.Utils.trashGrow(trash, false);	 	
+            	glowOut.play();
+            } 
+            
+            private var _removeItem:Object;
+            protected function DragDrop(event:DragEvent):void {
+            	DragExit(event);
+            	_removeItem = event.dragInitiator;
+            	if(event.dragInitiator is ScheduleItemDaily) {
+            		utils.Alert.show("确定删除选定的录像计划吗?     ", "删除确认", Alert.YES|Alert.NO, this, removeSchedule, null, Alert.NO);
+            	} else {
+            		utils.Alert.show("确定删除" + _removeItem.date + "全天的录像计划吗?       ", "删除确认", Alert.YES|Alert.NO, this, removeAll, null, Alert.NO);
+            	}
+            }
+		]]>
+	</mx:Script>
+	<!--
+	<mx:HBox width="100%" y="-2">
+		<mx:Spacer width="100%"/>
+		<mx:Canvas id="cEdit" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+			<mx:Button id="bRemove" label="删除全部日计划" filters="{[gFilter]}" click="confirmRemoveAll(event)"/>
+		</mx:Canvas>
+	</mx:HBox>-->
+	<mx:VBox x="0" y="25" width="100%" height="100%" paddingBottom="5">
+		<recording:ScheduleDaily id="schedule" x="0" y="0" height="100%"/>
+		<mx:HBox id="inf" styleName="board" width="100%" paddingLeft="5" 
+			horizontalScrollPolicy="off" verticalScrollPolicy="off" paddingTop="5" paddingRight="5" verticalAlign="bottom">
+			<mx:VBox width="100%">
+				<mx:HBox width="100%">
+					<mx:Label text="请选择计划执行日期"/>
+					<mx:DateField id="date" formatString="YYYY-MM-DD"/>
+					<mx:Spacer width="10"/>
+					<mx:RadioButtonGroup id="colorType"/>
+					<mx:RadioButton id="randomColor" label="随机颜色" group="{colorType}" selected="true"/>
+					<mx:RadioButton id="customize" label="自定义颜色" group="{colorType}"/>	
+					<mx:ColorPicker id="color" click="customize.selected=true"/>
+				</mx:HBox>
+				<mx:HBox width="100%" verticalAlign="top">
+					<mx:Label text="开始时间"/>
+					<mx:ComboBox id="startH" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.hours}" width="60" rowCount="24"/>
+					<mx:Label text=":" width="10"/>
+					<mx:ComboBox id="startM" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.minutes}" width="60" rowCount="12"/>  
+					<mx:Label text="结束时间"/>
+					<mx:ComboBox id="endH" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.hours}" width="60" rowCount="24"/>
+					<mx:Label text=":" width="10"/>
+					<mx:ComboBox id="endM" change="calLastTime()" selectedIndex="0" dataProvider="{Setting.minutes}" width="60" rowCount="12"/>
+					<mx:Label id="lastTime" text="持续时间:0分钟" color="haloOrange"/>
+					<mx:CheckBox label="启用" id="state" selected="true"/>
+					<mx:Button label="添加" click="saveSchedule(event)"/>
+				</mx:HBox>
+			</mx:VBox>
+			<mx:Image id="trash" width="32" height="32" 
+						source="{utils.Utils.trash_icon}"
+						dragEnter="DragEnter(event)"
+						dragOver="DragOver(event)"
+						dragExit="DragExit(event)"
+						dragDrop="DragDrop(event)"/>
+		</mx:HBox>
+	</mx:VBox>
+	<mx:Glow id="glow" duration="1000" 
+        alphaFrom="1.0" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="50.0" 
+        color="0x00FF80" target="{trash}" repeatCount="10000"/>
+    <mx:Glow id="glowOut" duration="1000" 
+        alphaFrom="0.5" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="50.0" 
+        color="0x00FF80" effectStart="glow.stop()" target="{trash}"/> 
+</mx:Canvas>

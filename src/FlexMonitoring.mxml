@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Application xmlns:mx="http://www.adobe.com/2006/mxml" 
+	layout="absolute" creationComplete="check_sign_in()" 
+	xmlns:views="views.*"
+	xmlns:gateway="views.gateway.*"
+	xmlns:spot="views.spot.*"
+	xmlns:user="views.user.*"
+	xmlns:map="views.map.*"
+	xmlns:dictionary="views.dictionary.*"
+	xmlns:record="views.recording.*" 
+	modalTransparency="0.8" 
+	modalTransparencyColor="#666666" 
+	modalTransparencyBlur="5" 
+	backgroundDisabledColor="#666666" 
+	disabledOverlayAlpha="0.01"
+	enabled="false" click="logOutTimer.stop();logOutTimer.start();"
+	verticalScrollPolicy="off" horizontalScrollPolicy="off">
+	
+	<mx:Style source="stylesheets/stylesheet.css"/>
+	
+	<mx:Script>
+		<![CDATA[
+			import views.user.LoginUsers;
+			import views.user.MonitorUsers;
+			import events.MapSpotEvent;
+			import views.TitleWin;
+			import mx.effects.Move;
+			import events.PopupEvent;
+			import mx.effects.Glow;
+			import mx.effects.Blur;
+			import views.spot.SpotGroup;
+			import views.MenuItem;
+			import utils.Alert;
+			import mx.events.DragEvent;
+			import utils.Utils;
+			import mx.events.ItemClickEvent;
+			import mx.utils.ObjectProxy;
+			import utils.Config;
+			import mx.effects.Fade;
+			import mx.effects.Zoom;
+			import views.user.Change_Passwd;	
+			import mx.events.CloseEvent;
+			import mx.collections.ArrayCollection;
+			import views.gateway.Gateway;
+			import mx.rpc.events.ResultEvent;
+			import mx.effects.Resize;
+			import mx.managers.PopUpManager;
+			import views.user.Sign_In;
+			import views.gateway.Gateway;
+			import mx.utils.URLUtil;
+			import mx.managers.DragManager;
+            import mx.core.DragSource;
+            import mx.core.Application;
+            import mx.utils.StringUtil;
+			
+			[Bindable]		
+			private var loginWin:Sign_In;
+			private var cpWin:Change_Passwd;
+			
+			private var mis:Array;
+			private var lbs:Array;
+			private var privileges:String;
+			
+			[Bindable]
+			public static var userInfo:String = "";
+//			[Bindable]
+//			public static var spot_list:ArrayCollection = new ArrayCollection();
+			private var timer:Timer = new Timer(10000);
+			private var logOutTimer:Timer = new Timer(45 * 60 * 1000); 
+			private var inited:Boolean = false;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+//			[Bindable]
+//			private var gwCompCollection:ArrayCollection;
+			
+			private function launchSignInScreen():void {
+				logo.source = "assets/logo.jpg";
+				frame.visible = false;
+				this.currentState = "";
+				loginWin = new Sign_In;
+				loginWin.callBack = enter;
+				this.prePopUp(new PopupEvent("Popup",new MouseEvent(MouseEvent.CLICK,true,false,width/2,height/2),loginWin));
+			}
+			
+			private function sign_off(event:CloseEvent):void {
+				if (event.detail == mx.controls.Alert.YES) {
+					do_sign_off();
+				}		
+			}
+			
+			private function autoLogout(event:TimerEvent):void {
+				do_sign_off();
+			}
+			
+			private function do_sign_off():void {
+				timer.stop();
+				logOutTimer.stop();
+				signOutRPC.url = utils.Utils.get_url("/users/sign_out");
+				signOutRPC.send();	
+			}
+			
+			private function reload(event:ResultEvent):void {
+				ExternalInterface.call("window.location.reload()");
+			}
+			
+			private function confirm_sign_off():void {
+				Alert.show("确定退出?       ", "退出确认", mx.controls.Alert.YES|mx.controls.Alert.NO, this, sign_off, null, mx.controls.Alert.NO);
+			}
+			
+			private function check_sign_in():void {				
+				userRPC.url = utils.Utils.get_url("/users/check_sign_in");
+				userRPC.send();			
+			} 
+			
+			private function enter(privileges:String):void {
+				timer.addEventListener(TimerEvent.TIMER, keepAlive);
+				logOutTimer.addEventListener(TimerEvent.TIMER, autoLogout);
+				timer.start();
+				logOutTimer.start();
+				userInfo = Utils.getUserInf();
+				logo.source = Utils.get_url(Utils.getLogoUri());
+				this.privileges = privileges;
+				mis = [b1,sg, b3, b7, b11, b8, b10, b10,b9];
+				//lbs = [lb1,lb2,lb3,lb4,lb5];
+				
+				for(var i:Number = 0; i < mis.length; i++) {
+					var mi:MenuItem = mis[i] as MenuItem;
+					mi.visible = privileges.indexOf( (i + 1) + ",") >= 0;
+					mi.includeInLayout = mi.visible;
+//					var lb:Object = lbs[i] as LargButton;
+//					lb.visible = mi.visible;
+//					lb.includeInLayout = mi.visible;
+				}
+				frame.visible = true;
+				get_dictionary();
+				//get_spot_groups();
+			}
+			
+			private function keepAlive(event:TimerEvent):void {
+				keepAliveRPC.send();
+			}
+			
+//			public function get_spot_groups():void {
+//				spotGroupRPC.url = utils.Utils.get_url("/spot_groups/list");
+//				spotGroupRPC.send();
+//			}
+			
+			private function init(event:ResultEvent):void {
+				var r:String = StringUtil.trim(event.result.toString());
+				if(r == "NOLOGIN") {
+					launchSignInScreen();
+					return;
+				}
+				Utils.loginInfo = r;
+				if(Utils.getRole() == 'op') {
+					show_monitor(false);
+					return;
+				}
+				
+				enter(Utils.getPrivileges());
+			}
+			
+			private function showChangePasswd(event:MouseEvent):void {
+				this.currentState = "MainMenu";
+				cpWin = new Change_Passwd;
+				cp.dispatchEvent(new PopupEvent(PopupEvent.POPUP,event,cpWin));
+			}
+			
+//			[Bindable]
+//   			public static var groups:XML;
+   			
+//   			private function set_group(event:ResultEvent):void {
+//				groups = XML(event.result);
+//				if(!inited) {
+//					inited = true;
+//					get_dictionary();
+//				}
+//			}
+			
+			private function menuClick(event:MouseEvent):void {
+				var item:MenuItem = event.currentTarget as MenuItem;
+				item.selected(true);
+				for(var i:Number = 0; i < menuItems.getChildren().length; i++) {
+					var _item:Object = menuItems.getChildAt(i);
+					if( _item is MenuItem && _item != item)
+						_item.selected(false);	
+				}
+			}
+			
+			private function lmenuClick(item:MenuItem):void {
+				item.selected(true);
+				for(var i:Number = 0; i < menuItems.getChildren().length; i++) {
+					var _item:Object = menuItems.getChildAt(i);
+					if( _item is MenuItem && _item != item)
+						_item.selected(false);	
+				}
+			}
+			
+			private var win:TitleWin;
+			private var popX:Number;
+			private var popY:Number;
+			private function prePopUp(event:PopupEvent):void {
+				win = event.win;
+				win.alpha = 0;
+				win.addEventListener("CloseWin", preCloseWin);
+				PopUpManager.addPopUp(win,this,true);
+				popX = event.mouseEvent.stageX;
+				popY = event.mouseEvent.stageY;
+				mL.xFrom = 0;
+				mL.xTo = popX;
+				mR.xFrom = width;
+				mR.xTo = popX;
+				mT.yFrom = 0;
+				mT.yTo = popY;
+				mB.yFrom = height;
+				mB.yTo = popY;
+				var w:Number = win.width;
+				var h:Number = win.height;
+				mL1.xTo = (width - w) / 2 + 5;
+				mR1.xTo = (width + w) / 2 - 5;
+				mT1.yTo = 50 + 5;
+				mB1.yTo = 50 + h - 5;
+				win.x = (width - w) / 2;
+				win.y = 50;
+				fadePop.target = win;
+				m.play(); 
+				//fadePop.play();
+			}
+			
+			private function preCloseWin(event:Event):void {
+				fadeClose.target = win;
+				fadeClose.play(null, true);
+				mLC.xFrom = 0;
+				mRC.xFrom = width;
+				mTC.yFrom = 0;
+				mBC.yFrom = height;
+				mLC1.xFrom = popX;
+				mRC1.xFrom = popX;
+				mTC1.yFrom = popY;
+				mBC1.yFrom = popY;
+				closePopUp.play(null,true);	
+			}
+			
+			private function closeWin():void {
+				PopUpManager.removePopUp(win);
+				//this.currentState = "MainMenu";
+			}
+			
+			private function SetSpots(event:MapSpotEvent):void {
+				setSpots.removeAllChildren();
+				setSpots.addChild(event.setSpots);
+				imageIn.play([event.setSpots]);
+			}
+			
+			private function showSpotGroup(event:MouseEvent):void {
+				currentState = "MainMenu";
+				var spotGroup:SpotGroup = new SpotGroup;
+				//spotGroup.groups = groups;
+				spotGroup.height = height * 0.9;
+				sg.dispatchEvent(new PopupEvent("Popup", event, spotGroup));
+			}
+			
+			private function showMonitorUsers(event:MouseEvent):void {
+				currentState = "MainMenu";
+				var mu:MonitorUsers = new MonitorUsers;
+				mu.height = height * 0.8;
+				b9.dispatchEvent(new PopupEvent("Popup", event, mu));
+			}
+			
+			private function show_monitor(b:Boolean = true):void {
+				var url:String = "/monitor/"; 
+				var request:URLRequest = new URLRequest(url); 
+				if(b) navigateToURL(request,"_blank");
+				else  navigateToURL(request,"_top");
+			}
+			
+//			private function showDictionary(event:MouseEvent):void {
+//				currentState = "MainMenu";
+//				var d:views.dictionary.Dictionary = new views.dictionary.Dictionary;
+//				d.height = height - 100;
+//				dictionary.dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, d));
+//			}
+
+			private function get_dictionary():void {
+				dictRPC.url = Utils.get_url("/dictionary/list");
+				dictRPC.send();
+			}
+			
+			private function set_dictionary(event:ResultEvent):void {
+				Gateway.DICTIONARY = XML(event.result);
+				finish_init();
+			}
+			
+			private function finish_init():void {
+				enabled = true;
+				this.currentState = "MainMenu";
+			}
+			
+//			public function get_spot_names():void {
+//				spotRPC.url = Utils.get_url("/spots/names");
+//				spotRPC.send();
+//			}
+			
+//			private function init_spot_list(event:ResultEvent):void {
+//				if(event.result.Spots) {
+//					if(event.result.Spots.Spot is ObjectProxy) {
+//						spot_list.addItem(event.result.Spots.Spot);		
+//					} else {
+//						spot_list = event.result.Spots.Spot;
+//					}
+//				}	
+//			}
+			
+//			private function showRecordSetting(event:MouseEvent):void {
+//				currentState = "MainMenu";
+//				var s:views.recording.Config = new views.recording.Config;
+//				recordSetting.dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, s));
+//			}
+			private function check_state(event:ResultEvent):void {
+				var s:String = event.result.toString();
+				if(s == "0") {
+					ExternalInterface.call("window.location.reload()");
+				}
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="keepAliveRPC" showBusyCursor="false" url="{Utils.get_url('/users/keep_alive')}" result="check_state(event)" resultFormat="text"/>
+	<mx:HTTPService id="userRPC" result="init(event)" resultFormat="text"/>
+	<mx:HTTPService id="signOutRPC" result="reload(event)" resultFormat="text"/>
+	<!--<mx:HTTPService id="spotGroupRPC" result="set_group(event)" resultFormat="xml"/>
+	<mx:HTTPService id="spotRPC" result="init_spot_list(event)"/>-->
+	<mx:HTTPService id="dictRPC" showBusyCursor="true" resultFormat="xml" result="set_dictionary(event)"/>
+	
+	<mx:Fade id="fadePop" alphaFrom="0" alphaTo="1"/>
+	<mx:Sequence id="m" effectEnd="fadePop.play()">
+		<mx:Parallel duration="300">
+			<mx:Move id="mL" target="{l}"/>
+			<mx:Move id="mR" target="{r}"/>
+			<mx:Move id="mT" target="{t}"/>
+			<mx:Move id="mB" target="{b}"/>
+			<mx:Fade alphaFrom="0" alphaTo="1" targets="{[l,r,t,b]}"/>
+		</mx:Parallel>
+			
+		<mx:Parallel repeatCount="2" duration="100" targets="{[l,r,t,b]}">
+			<mx:Glow alphaFrom="0.2" alphaTo="1" blurXFrom="0" blurXTo="10" blurYFrom="0" blurYTo="10"/> 
+		</mx:Parallel>
+		<mx:Glow alphaTo="1" blurXTo="0" blurYTo="0" targets="{[l,r,t,b]}" duration="10"/>
+		
+		<mx:Parallel  duration="300">
+			<mx:Move id="mL1" target="{l}"/>
+			<mx:Move id="mR1" target="{r}"/>
+			<mx:Move id="mT1" target="{t}"/>
+			<mx:Move id="mB1" target="{b}"/>
+			<mx:Fade alphaFrom="5" alphaTo="0.8" targets="{[l,r,t,b]}"/>
+		</mx:Parallel>
+		<!--<mx:Fade id="fadePop" alphaFrom="0" alphaTo="1"/>-->
+	</mx:Sequence>
+	
+	<mx:Sequence id="closePopUp">
+		<mx:Parallel id="mClose" duration="300">
+			<mx:Move id="mLC" target="{l}"/>
+			<mx:Move id="mRC" target="{r}"/>
+			<mx:Move id="mTC" target="{t}"/>
+			<mx:Move id="mBC" target="{b}"/>
+			<mx:Fade alphaFrom="0" targets="{[l,r,t,b]}"/>
+		</mx:Parallel>
+		<mx:Parallel duration="500">
+			<mx:Move id="mLC1" target="{l}"/>
+			<mx:Move id="mRC1" target="{r}"/>
+			<mx:Move id="mTC1" target="{t}"/>
+			<mx:Move id="mBC1" target="{b}"/>
+			<mx:Fade id="fadeClose" alphaFrom="0" alphaTo="1" effectEnd="closeWin()"/>
+		</mx:Parallel>
+	</mx:Sequence>
+	<!--<mx:Fade id="fadeClose" alphaFrom="0" alphaTo="1" effectEnd="closeWin()"/>-->
+	<mx:Fade id="fadeIn" alphaFrom="0.5" alphaTo="1"/>
+	<mx:Fade id="fadeOut" alphaFrom="1" alphaTo="0.5"/>
+	
+	<mx:Canvas width="100%" height="40" styleName="board" backgroundImage="assets/bt.jpg" backgroundSize="100%" backgroundAlpha="1">
+		<mx:HBox width="100%" height="100%" verticalCenter="0">
+			<mx:Spacer width="5"/>
+			<mx:Image id="logo" source="assets/logo.jpg" width="235" height="40"/>
+			<mx:Spacer width="100%"/>
+			<mx:Label text="{userInfo}" paddingTop="10"/>
+			<mx:Canvas width="35" height="100%">
+				<mx:Image toolTip="退出" click="confirm_sign_off()" source="assets/logout.png" buttonMode="true" useHandCursor="true" alpha="0.5" rollOverEffect="{fadeIn}" rollOutEffect="{fadeOut}" verticalCenter="0" horizontalAlign="right"/>
+			</mx:Canvas>
+		</mx:HBox>
+	</mx:Canvas>
+	<mx:HDividedBox id="frame" visible="false" x="0" y="0" width="100%" height="100%" left="1" right="5" top="40" bottom="5">
+		<mx:Canvas id="menu" styleName="menu" borderSides="left right bottom" height="100%" left="5" width="180" bottom="5" top="0" 
+			maxWidth="180" horizontalScrollPolicy="off">
+			<mx:VBox id="menuItems" width="100%" x="0" y="30" verticalGap="-1" height="100%" paddingBottom="5">
+				<views:MenuItem id="b1" icon_="monitor_icon.png" text="设备管理" click="menuClick(event);this.currentState='GatewayState'"/>
+				<views:MenuItem icon_="group.png" id="sg" Popup="prePopUp(event)" text="监控点分组" click="menuClick(event);showSpotGroup(event)"/>
+				<views:MenuItem id="b3" icon_="map.png" text="电子地图" click="menuClick(event);this.currentState='MapState'"/>
+				<!--
+				<views:MenuItem icon_="rec_setup.png" text="录像设置" id="recordSetting" Popup="prePopUp(event)" click="menuClick(event);showRecordSetting(event)"/>
+				<views:MenuItem id="b5" icon_="schedule.png" text="录像计划" click="menuClick(event);this.currentState='RecordState'"/>
+				<views:MenuItem id="b6" icon_="replay.png" text="录像回放" click="menuClick(event);this.currentState='replay'"/>
+				-->
+				<views:MenuItem id="b7" icon_="home.png" text="组织机构" click="menuClick(event);this.currentState='CompanyState'"/>
+				<views:MenuItem icon_="users.png" id="b9" Popup="prePopUp(event)" text="系统监看员" click="menuClick(event);showMonitorUsers(event)"/>
+				<views:MenuItem id="b8" icon_="users.png" text="用户管理" click="menuClick(event);this.currentState='UserState'"/>
+				<!--<views:MenuItem icon_="drivers.png" id="drivers" text="设备驱动" click="menuClick(event);this.currentState='drivers'"/>
+				<views:MenuItem icon_="dict.png" id="dictionary" text="字典管理" Popup="prePopUp(event)" click="menuClick(event);showDictionary(event)"/>-->
+				<views:MenuItem icon_="uw.png" id="b10" text="当前登录用户" click="menuClick(event);this.currentState='LoginUserState'"/>
+				<views:MenuItem icon_="summary.gif" id="log" text="查看日志" click="menuClick(event);this.currentState='log'"/>
+				<views:MenuItem icon_="key.png" text="修改密码" id="cp" Popup="prePopUp(event)" click="menuClick(event);this.showChangePasswd(event)"/>
+				<mx:Spacer height="100%"/>
+				<views:MenuItem id="b11" icon_="monitoring.png" text="监控" click="menuClick(event);this.show_monitor()"/>
+				<mx:Spacer height="30"/>
+			</mx:VBox>
+			<views:StyleTitle text="系统功能" click="currentState='MainMenu'" buttonMode="true" useHandCursor="true" mouseChildren="false"/>
+		</mx:Canvas>
+		<mx:Canvas width="100%" height="100%" id="mainFrame">
+				
+		</mx:Canvas>
+	</mx:HDividedBox>
+
+	<mx:states>
+		<mx:State name="GatewayState" enterState="gateways.init()" exitState="gateways.on_exit()">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<!--<gateway:Gateways ReloadSpots="get_spot_groups()" Popup="prePopUp(event)"/>-->
+				<gateway:Gateways visible="false" id="gateways" Popup="prePopUp(event)"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="MainMenu">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<mx:Tile width="100%" x="20" y="20" horizontalGap="20" verticalGap="20" height="100%">
+					
+				</mx:Tile>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="MapState">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<!--<map:Maps spotGroups="{groups}" Popup="prePopUp(event)" SetSpots="SetSpots(event)"/>-->
+				<map:Maps Popup="prePopUp(event)" SetSpots="SetSpots(event)"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="RecordState">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<!--<record:Setting spots="{groups}"/>-->
+				<record:Setting/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="UserState" enterState="usg.init()" exitState="usg.on_exit()">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<!--<user:UserGroups Popup="prePopUp(event)" spots="{groups}"/>-->
+				<user:UserGroups id="usg" Popup="prePopUp(event)" />
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="LoginUserState" enterState="lu.init()" exitState="lu.on_exit()">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<!--<user:UserGroups Popup="prePopUp(event)" spots="{groups}"/>-->
+				<user:LoginUsers id="lu"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="CompanyState" enterState="coms.init()" exitState="coms.on_exit()">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<user:Companies id="coms" Popup="prePopUp(event)"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="drivers">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<dictionary:Drivers Popup="prePopUp(event)"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="log" enterState="logv.get_data()">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<views:Log id="logv"/>
+			</mx:AddChild>
+		</mx:State>
+		<mx:State name="replay">
+			<mx:AddChild position="lastChild" relativeTo="{mainFrame}">
+				<!--<record:ReplayMain Popup="prePopUp(event)" spots="{groups}"/>-->
+				<record:ReplayMain Popup="prePopUp(event)"/>
+			</mx:AddChild>
+		</mx:State>	
+	</mx:states>
+	
+	<mx:Canvas id="l" width="1" height="100%" x="-1" y="0" styleName="laser"/>
+	<mx:Canvas id="r" width="1" height="100%" x="-1" y="0" styleName="laser"/>
+	<mx:Canvas id="t" width="100%" height="1" x="0" y="-1" styleName="laser"/>
+	<mx:Canvas id="b" width="100%" height="1" x="0" y="-1" styleName="laser"/>
+	
+	<mx:Canvas id="setSpots" x="0" y="0" width="100%" height="100%"/>
+	<mx:Fade id="imageIn" alphaFrom="0" alphaTo="1"/>
+</mx:Application>

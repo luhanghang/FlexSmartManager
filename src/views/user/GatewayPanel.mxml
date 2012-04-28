@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="220" height="190" styleName="adminInfo" 
+	shadowDirection="right" shadowDistance="5" dropShadowEnabled="true" click="modify(event)" 
+	rollOver="styleName='adminInfoHover';l1.styleName='labelHover';l2.styleName='labelHover';l3.styleName='labelHover'"
+	rollOut="styleName='adminInfo';l1.styleName='label';l2.styleName='label';l3.styleName='label'" 
+	horizontalScrollPolicy="off" verticalScrollPolicy="off" useHandCursor="true" buttonMode="true" 
+	mouseChildren="false" mouseMove="MouseMove(event)">
+	<mx:Metadata>
+			[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>	
+	<mx:Script>
+		<![CDATA[
+			import views.gateway.CompanyGWInfo;
+			import mx.core.DragSource;
+			import events.PopupEvent;
+			import mx.managers.DragManager;
+			import utils.*;
+			
+			[Bindable]
+			public var gateway:XML;
+			public var company:String;
+			
+			private function modify(event:MouseEvent):void {
+				if(Utils.getRole() == "mo") return;
+				var infScreen:CompanyGWInfo = new CompanyGWInfo;
+				infScreen.gw_id = gateway.@id;
+				infScreen.gInf = gateway;
+				infScreen.com_id = company;
+				infScreen.callBack = update_gateway;
+				this.dispatchEvent(new PopupEvent("Popup", event, infScreen));
+			}
+			
+			private function update_gateway(gateway:XML):void {
+				this.gateway = gateway;
+			}
+			
+			private function MouseMove(event:MouseEvent):void {
+				var ds:DragSource = new DragSource
+	            ds.addData(gateway,"gateway");
+
+	            var canvasProxy:GatewayPanel = new GatewayPanel;
+	            canvasProxy.gateway = gateway;
+	            canvasProxy.width = width;
+	            DragManager.doDrag(this, ds, event, canvasProxy);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:VBox width="100%" height="100%" y="20" left="10" right="10">
+		<mx:Canvas id="l1" styleName="label" width="100%">
+			<mx:Label text="{gateway.@name}" horizontalCenter="0"/>
+		</mx:Canvas>
+		<mx:Canvas id="l3" styleName="label" width="100%">
+			<mx:Label text="网关地址: {gateway.@address}" horizontalCenter="0"/>
+		</mx:Canvas>
+		<mx:Canvas id="l2" styleName="label" width="100%">
+			<mx:Label text="监控点容量: {gateway.@capacity}" horizontalCenter="0"/>
+		</mx:Canvas>
+		<mx:Canvas id="l4" styleName="label" width="100%">
+			<mx:Label text="最大并发数量: {gateway.@concurrency}" horizontalCenter="0"/>
+		</mx:Canvas>
+		
+	</mx:VBox>
+	<mx:Image source="assets/matrix.png" alpha="0.4" right="-100" bottom="0"/>
+</mx:Canvas>

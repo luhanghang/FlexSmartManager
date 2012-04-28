@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:HBox xmlns:mx="http://www.adobe.com/2006/mxml" buttonMode="true" 
+	width="100%" useHandCursor="true" height="32" backgroundAlpha="1" backgroundSize="100%" 
+	rollOver="miText.styleName='menuItemSelected';mi.styleName='miSelected'" 
+	rollOut="if(!sel) {miText.styleName='menuItem';mi.styleName='mi';}">
+	
+	<mx:Metadata>
+		[Event(name="Popup",type="events.PopupEvent")]	
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import utils.Utils;
+		
+			[Bindable]
+			public var text:String;
+			
+			[Bindable]
+			public var icon_:String = "";
+			
+			private var sel:Boolean;
+			public function selected(s:Boolean):void {
+				this.sel = s;
+				if(s) { 
+					miText.styleName = "menuItemSelected";
+					mi.styleName = "miSelected";
+				} else {
+					miText.styleName = "menuItem";
+					mi.styleName = "mi";
+				}
+			}
+		]]>
+	</mx:Script>
+	<mx:Canvas width="100%" height="100%" id="mi" styleName="mi" backgroundSize="100%" backgroundAlpha="1">
+		<mx:HBox width="100%" x="10" id="miText" styleName="menuItem" height="100%" verticalAlign="middle">
+			<mx:Canvas width="18" height="100%">
+				<mx:Image source="assets/{icon_}" width="16" height="16" verticalCenter="0"/>
+			</mx:Canvas>
+			<mx:Label text="{text}" buttonMode="true" useHandCursor="true" mouseChildren="false" x="10"/>
+		</mx:HBox>
+	</mx:Canvas>
+</mx:HBox>

@@ -1,0 +1,400 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" x="0" y="0"
+	backgroundColor="#000000" backgroundAlpha="1" width="100%" height="100%" 
+	xmlns:utils="utils.*" horizontalScrollPolicy="off" verticalScrollPolicy="off"
+	xmlns:views="views.*" xmlns:map="views.map.*">
+	<mx:Style>
+		.tree {
+			text-roll-over-color: #ff0000;
+			text-selected-color: #ffffff;	
+		}
+	</mx:Style>
+	<mx:Script>
+		<![CDATA[
+			import views.spot.SpotGroup;
+			import mx.effects.Resize;
+			import mx.events.CloseEvent;
+			import mx.utils.ObjectProxy;
+			import mx.collections.ArrayCollection;
+			import mx.rpc.events.ResultEvent;
+			import mx.events.EffectEvent;
+			import mx.controls.Image;
+			import mx.events.DragEvent;
+			import mx.controls.Alert;
+			import utils.Utils;
+			import mx.core.UIComponent;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import utils.Icons;
+			import mx.utils.StringUtil;
+			
+			[Bindable]
+			private var map:XML;
+			
+			[Bindable]
+			public var spotGroups:XML;
+			
+			[Bindable]
+			private var spots:XML;
+			
+			private function close():void {
+				thisFadeOut.play();
+			}
+			
+			private function set_icon(item:Object):* {
+				if(item.@parent == "0") return Icons.HOME;
+				if(isGroup(item as XML)) {
+					//return Icons.FOLDER;
+					return spotTree.isItemOpen(item)? spotTree.getStyle('folderOpenIcon'):spotTree.getStyle('folderClosedIcon');
+				} else return Icons.MONITOR;	
+			}
+			
+			private function isGroup(node:XML):Boolean {
+				return node.localName().toString() == "Group";
+			}
+			
+			private function labelFunction(item:XML):String {
+				if(isGroup(item))
+					return item.@name + " (" + item.children().length() + ")";
+				return item.@name
+			}
+			
+
+			private var big:Boolean = false;
+			private var small:Boolean = false;
+			
+			private var rateW:Number;
+			private var rateH:Number;
+			private var draggedSpot:Spot;
+			private var spotDrag:Boolean = false;
+			
+			public function init(map:XML):void {
+				this.map = map;
+				mapSpotRPC.url = Utils.get_url("/maps/list_spots/" + map.@id);	
+				mapSpotRPC.send();
+			}
+			
+			private function set_scope(flag:int):void {
+				if(flag == 0) {
+					big = true;
+					var f:Fade = new Fade;
+					f.alphaFrom = 0;
+					f.alphaTo = 1;
+					f.play([img]);
+					img.width = img.contentWidth;
+					img.height = img.contentHeight;
+				}
+				else small = true;
+				if(big && small) {
+					var w:int = this.width > img.contentWidth? this.width: img.contentWidth;
+					var h:int = this.height > img.contentHeight? this.height: img.contentHeight;
+					rateW = img.contentWidth / nav.width;
+					rateH = img.contentHeight / nav.height;
+					scope.width = this.width / w * nav.width;
+					scope.height = this.height / h * nav.height;	
+					spotsLayer.width = img.contentWidth;
+					spotsLayer.height = img.contentHeight;
+				}
+				init_layers();
+			}
+			
+			private var startX:Number;
+			private var startY:Number;
+			
+			private function beginDrag(event:MouseEvent):void {
+				startX = event.stageX;
+				startY = event.stageY;	
+			}
+			
+			private function mapMove(event:MouseEvent):void {
+				if(!spotDrag && event.buttonDown) {
+					var x:Number = event.stageX - startX;
+					var y:Number = event.stageY - startY;
+					var w:Number = this.width > img.contentWidth? this.width : img.contentWidth;
+					var h:Number = this.height > img.contentHeight? this.height : img.contentHeight;
+					if(img.x + x > 0) x = 0 - img.x;
+					if(img.y + y > 0) y = 0 - img.y;
+					if(this.width - (img.x + x) > img.contentWidth) x = width - img.x - w;
+					if(this.height - (img.y + y) > img.contentHeight) y = height - img.y - h;
+					startX = event.stageX;
+					startY = event.stageY;	
+					img.move(img.x + x, img.y + y);
+					spotsLayer.move(spotsLayer.x + x, spotsLayer.y + y);
+					scope.move(scope.x - x / rateW, scope.y - y / rateH);
+				}	
+			}
+			
+			private function scopeMove(event:MouseEvent):void {
+				if(event.buttonDown) {
+					var x:Number = scope.x + (event.stageX - startX);
+					var y:Number = scope.y + (event.stageY - startY);
+					if(x < 0) x = 0;
+					if(y < 0) y = 0;
+					if(x + scope.width > nav.width) x = nav.width - scope.width;
+					if(y + scope.height > nav.height) y = nav.height - scope.height;
+					startX = event.stageX;
+					startY = event.stageY;
+					scope.move(x,y);
+					img.move(0 - x * rateW, 0 - y * rateH);
+					spotsLayer.move(0 - x * rateW, 0 - y * rateH);
+				} 	
+			}
+			
+			private function dragEnter(event:DragEvent):void {
+				var node:XML = spotTree.selectedItem as XML;
+				if((event.dragInitiator == spotTree && !isGroup(node)) && !isExists(node) || event.dragInitiator is Spot) {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+				}
+			}
+			
+			private function isExists(node:XML):Boolean {
+				for each(var spot:XML in spots.Spot) {
+					if(spot.@id == node.@id) return true;
+				}
+				return false;
+			}
+			
+			private function dragOver(event:DragEvent):void {
+				if(event.dragInitiator == spotTree)
+					DragManager.showFeedback(DragManager.LINK);
+				else 
+					DragManager.showFeedback(DragManager.MOVE);		
+			}
+			
+			private function dragDrop(event:DragEvent):void {
+				var spot:Spot;
+				if(event.dragInitiator == spotTree) {
+					var node:XML = spotTree.selectedItem as XML;
+					spot = new Spot();
+					spot.callBack = set_spot_drag;
+					spot.spot = node;
+					spot.x = event.localX - 5;
+					spot.y = event.localY - 5 - 45; 
+					add_spot(spot);
+				} else {
+					spot = event.dragInitiator as Spot;
+					spot.x = event.localX - Number(event.dragSource.dataForFormat("x"));
+					spot.y = event.localY - Number(event.dragSource.dataForFormat("y")) - 45;
+					
+					for(var i:Number = 0; i < thumbLayer.getChildren().length; i++) {
+						var s:SpotThumb = thumbLayer.getChildAt(i) as SpotThumb;
+						if(s.spot.@id == spot.spot.@id) {
+							s.x = spot.x / rateW;
+							s.y = (spot.y + 45) / rateH;
+						}
+					}
+					
+					mapSpotModifyRPC.url = Utils.get_url("/map_spots/update");
+					var params:URLVariables = new URLVariables;
+					params["spot[spot_id]"] = spot.spot.@id;
+					params["spot[map_id]"] = map.@id;
+					params["spot[x]"] = spot.x;
+					params["spot[y]"] = spot.y;
+					mapSpotModifyRPC.send(params);
+				}
+			}
+			
+			private function add_spot(spot:Spot):void {
+				spotsLayer.addChild(spot);	
+				var t:SpotThumb = new SpotThumb;
+				t.spot = spot.spot;
+				t.x = spot.x / rateW;
+				t.y = (spot.y + 45) / rateH;
+				thumbLayer.addChild(t);
+				
+				mapSpotModifyRPC.url = Utils.get_url("/map_spots/create");
+				var params:URLVariables = new URLVariables;
+				params["spot[spot_id]"] = spot.spot.@id;
+				params["spot[map_id]"] = map.@id;
+				params["spot[x]"] = spot.x;
+				params["spot[y]"] = spot.y;
+				mapSpotModifyRPC.send(params);
+				spotDrag = false;
+			}
+			
+			private function remove_spot(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					var draggedSpot:Spot = trash.src as Spot;
+					var i:Number;
+					var children:XMLList = spots.Spot;
+					for(i = 0; i < children.length(); i++) {
+						if(children[i].@id == draggedSpot.spot.@id) {
+							delete children[i];
+							break;
+						}
+					}
+					spotsLayer.removeChild(draggedSpot);
+					for(i = 0; i < thumbLayer.getChildren().length; i++) {
+						var s:SpotThumb = thumbLayer.getChildAt(i) as SpotThumb;
+						if(s.spot.@id == draggedSpot.spot.@id) {
+							thumbLayer.removeChild(s);
+							break;
+						}
+					}
+					mapSpotModifyRPC.url = Utils.get_url("/map_spots/destroy");
+					var params:URLVariables = new URLVariables;
+					params["spot[spot_id]"] = draggedSpot.spot.@id;
+					params["spot[map_id]"] = map.@id;
+					mapSpotModifyRPC.send(params);
+				}
+			}
+			
+			private function find_spot_on_map():void {
+				var node:XML = spotTree.selectedItem as XML;
+				for each(var ob:Object in thumbLayer.getChildren()) {
+					var t:SpotThumb = ob as SpotThumb;
+					if(t.spot.@id == node.@id) {
+						t.flash();
+						return;
+					}
+				}								
+			}
+			
+			private function change_align():void {
+				if(indicator.text == '<<') {
+					indicator.text = '>>';
+					alignLeft.play();				
+				} else {
+					indicator.text = '<<';
+					alignRight.play();
+				}	
+			}
+			
+			private function init_map_spots(event:ResultEvent):void {
+				spots = XML(event.result);
+				refresh_map_spots()
+				init_layers();
+			}
+			
+			private function refresh_map_spots():void {
+				spotGroups.Spots = spots;
+				spotTree.dataProvider = spotGroups.Group;
+			}
+			
+			private function init_layers():void {
+				if(big && small) {
+					for each(var spot:XML in spots.Spot) {
+						var t:SpotThumb = new SpotThumb;
+						t.x = int(spot.@x) / rateW;
+						t.y = (int(spot.@y) + 45) / rateH;
+						t.spot = spot;
+						thumbLayer.addChild(t);
+						var s:Spot = new Spot;
+						s.callBack = set_spot_drag;
+						s.x = spot.@x;
+						s.y = spot.@y;
+						s.spot = spot;
+						spotsLayer.addChild(s);
+					}
+				}
+			}
+			
+			private function remove_all():void {
+				utils.Alert.show("确定要清除该地图上的所有监控点吗?         ", "删除确认", Alert.YES|Alert.NO, this, do_remove_all, null, Alert.NO);
+			}
+			
+			private function do_remove_all(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					spotsLayer.removeAllChildren();
+					thumbLayer.removeAllChildren();
+					spots = <Spots/>;
+					refresh_map_spots()
+					mapSpotModifyRPC.url = Utils.get_url("/maps/remove_all_spots/" + map.@id);
+					mapSpotModifyRPC.send();
+				}
+			}
+			
+			private function set_spot_drag(flag:Boolean):void {
+				spotDrag = flag;
+			}
+			
+			private function map_spot_saved(event:ResultEvent):void {
+				spotDrag = false;
+				var spot:XML = XML(event.result);
+				if(spot && StringUtil.trim(spot.toXMLString())!="") {
+					spots.appendChild(spot);
+				}
+				refresh_map_spots();
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="mapSpotRPC" useProxy="false" showBusyCursor="true" resultFormat="xml" result="init_map_spots(event)"/>
+	<mx:HTTPService id="mapSpotModifyRPC" useProxy="false" showBusyCursor="true" method="POST" result="map_spot_saved(event)" resultFormat="xml"/>
+	
+	<mx:Fade id="thisFadeOut" alphaFrom="1" alphaTo="0" target="{this}" 
+		effectEnd="this.visible=false;this.includeInLayout=false"/>
+	
+	
+	<mx:Sequence id="alignLeft" target="{controlPanel}">
+		<mx:Blur blurXTo="50" duration="100"/>
+		<mx:Resize widthTo="200" duration="100"/>
+		<mx:Blur blurXTo="0" duration="100"/>
+	</mx:Sequence>
+	
+	<mx:Sequence id="alignRight" target="{controlPanel}" effectEnd="controlPanel.percentWidth=100">
+		<mx:Blur blurXTo="50" duration="100"/>
+		<mx:Resize widthTo="{this.width}" duration="100"/>
+		<mx:Blur blurXTo="0" duration="100"/>
+	</mx:Sequence>
+	
+	<mx:Fade id="fadeIn" alphaFrom="0.6" alphaTo="1" duration="500"/>
+	<mx:Fade id="fadeOut" alphaFrom="1" alphaTo="0.6"  duration="500"/>
+	
+	<mx:Glow id="glow" duration="1000" 
+        alphaFrom="1" alphaTo="1" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="30.0" 
+        color="0x00FF80" repeatCount="10000"/> 
+    <mx:Glow id="glowOut" duration="1000" 
+        alphaFrom="1" alphaTo="0" 
+        blurXFrom="0.0" blurXTo="50.0" 
+        blurYFrom="0.0" blurYTo="30.0" 
+        color="0x00FF80" effectStart="glow.stop()"/>
+	
+	<utils:LoadingImage width="100%" height="100%" id="img" x="0" y="0" source="{Utils.get_url(map.@img)}" 
+		scaleContent="false" complete="set_scope(0)"/>
+	
+	<mx:Canvas height="100%" width="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+		<mx:Canvas x="0" y="0" id="spotsLayer" backgroundAlpha="0" backgroundColor="#000000"
+			 horizontalScrollPolicy="off" verticalScrollPolicy="off"
+			dragEnter="dragEnter(event)" 
+			dragOver="dragOver(event)" 
+			dragDrop="dragDrop(event)" 
+			mouseDown="beginDrag(event)" 
+			mouseMove="mapMove(event)"/>	
+	</mx:Canvas>
+	
+	<mx:HBox x="0" y="0" width="100%" height="100%" horizontalAlign="right" id="controlPanel" creationCompleteEffect="{fadeOut}" rollOverEffect="{fadeIn}" rollOutEffect="{fadeOut}">
+		<mx:VBox width="200" height="100%" backgroundColor="#222222" backgroundAlpha="0.8" horizontalAlign="center">
+			<mx:HBox width="100%" verticalGap="1" height="20" backgroundColor="#000000" backgroundAlpha="0.2">
+				<mx:Label rollOutEffect="{glowOut}" rollOverEffect="{glow}" id="indicator" text="&lt;&lt;" fontSize="12" color="#ffffff" mouseChildren="false" useHandCursor="true" buttonMode="true" click="change_align()"/>
+				<mx:Spacer width="100%"/>
+				<mx:Label rollOutEffect="{glowOut}" rollOverEffect="{glow}" text="退出" fontSize="12" color="#ffffff" mouseChildren="false" useHandCursor="true" buttonMode="true" click="close()"/>
+			</mx:HBox>
+			<mx:Canvas id="nav" width="200">
+				<utils:LoadingImage width="100%" x="0" y="0" source="{Utils.get_url(map.@thumb)}" scaleContent="false" complete="set_scope(1)"/>
+				<mx:Canvas id="thumbLayer" x="0" y="0" width="100%" height="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off"/>
+				<mx:Canvas id="scope" x="0" y="0" 
+					backgroundColor="#000000" borderColor="#ffffff" 
+					borderStyle="solid" alpha="0.5" backgroundAlpha="1" buttonMode="true" useHandCursor="true"
+					mouseDown="beginDrag(event)" 
+					mouseMove="scopeMove(event)" mouseOut="scopeMove(event)"/> 	
+			</mx:Canvas>
+			<mx:Tree id="spotTree" labelFunction="labelFunction" iconFunction="set_icon" 
+				width="100%" height="100%" backgroundAlpha="0" 
+				backgroundColor="#222222" rollOverColor="#000000" selectionColor="#000000"
+				dataProvider="{spotGroups.Group}" borderStyle="none"  
+				showRoot="false" openItems="{spotGroups.Group}" color="#ffffff" 
+				styleName="tree" dragEnabled="true" itemRenderer="views.map.SpotTreeItemRender"   
+				allowMultipleSelection="false" rowHeight="18"
+				dragMoveEnabled="false" dragComplete="spotDrag = false" 
+				dragStart="spotDrag = true" click="find_spot_on_map()"/>
+			<mx:HBox width="100%" height="40" backgroundColor="#000000" backgroundAlpha="0.5" verticalAlign="middle">
+				<mx:Label id="clearALL" text="清除所有监控点" rollOutEffect="{glowOut}" rollOverEffect="{glow}" fontSize="12" color="#ffffff" mouseChildren="false" useHandCursor="true" buttonMode="true" click="remove_all()"/>
+				<mx:Spacer width="100%"/>
+				<views:Trash id="trash" confirm="确定从地图上删除此监控点?       " srcClass="{views.map.Spot}" callBack="remove_spot"/>
+			</mx:HBox>		
+		</mx:VBox>	
+	</mx:HBox>		
+</mx:Canvas>

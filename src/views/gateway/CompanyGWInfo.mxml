@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" width="320" height="180" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import utils.Utils;
+			import mx.utils.ObjectProxy;
+			
+			public var com_id:String;
+			public var gw_id:String;
+			public var gwUsed:XML;
+			
+			[Bindable]
+			public var gInf:XML;
+			
+			[Bindable]
+			public var gateways:ArrayCollection = new ArrayCollection;
+			
+			private function init():void {
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				
+				if(Gateways.gw_array.length == 0) {
+					gwRPC.url = Utils.get_url("/gateway/all");
+					gwRPC.send();	
+				} else {
+					set_selected_gw();	
+				}
+			}
+			
+			private function set_selected_gw():void {
+				if(gw_id) {
+					gateways = Gateways.gw_array;
+					for each(var g:Object in Gateways.gw_array) {
+						if(gw_id == g.id) {
+							gateway.selectedIndex = gateways.getItemIndex(g);
+							gateway.enabled = false;
+							return;	
+						}
+					}
+				} else {
+					for each(var g:Object in Gateways.gw_array) {
+						var exists:Boolean = false;
+						for each(var gu:XML in gwUsed.Gateway) {
+							if(g.id.toString() == gu.@id) {
+								exists = true;
+								break;
+							}
+						}
+						if(!exists) {
+							gateways.addItem(g);
+						}
+					}			
+				}
+			}
+			
+			private function set_gateways(event:ResultEvent):void {
+				if(!event.result.gateways) return;
+				Gateways.gw_array = new ArrayCollection();
+				if(event.result.gateways.gateway is ObjectProxy) {
+					Gateways.gw_array.addItem(event.result.gateways.gateway);
+				} else {
+					Gateways.gw_array = event.result.gateways.gateway;
+				}
+				set_selected_gw()
+			}
+			
+			private function submit_data():void {
+				var params:URLVariables = new URLVariables;
+				params["gateway[gateway_id]"] = gateways.getItemAt(gateway.selectedIndex).id;
+				params["gateway[company_id]"] = com_id;
+				params["gateway[capacity]"] = capacity.text;
+				params["gateway[concurrency]"] = concurrency.text;
+				if(gw_id) {
+					gInf.@capacity = params["gateway[capacity]"];
+					gInf.@concurrency = params["gateway[concurrency]"];
+					updateRPC.url = Utils.get_url("/companies/update_gateway/1");
+					updateRPC.send(params);
+				} else {
+					addRPC.url = Utils.get_url("/companies/add_gateway/1");
+					addRPC.send(params);
+				}
+			}
+			
+			private function add(event:ResultEvent):void {
+					var gw:XML = <Gateway/>;
+					gw.@id = gateways.getItemAt(gateway.selectedIndex).id;
+					gw.@address = gateways.getItemAt(gateway.selectedIndex).address;
+					gw.@name = gateways.getItemAt(gateway.selectedIndex).name;
+					gw.@capacity = capacity.text;
+					gw.@concurrency = concurrency.text;
+					callBack.call(this.parent,gw);
+					close();	
+			}
+			
+			private function update(event:ResultEvent):void {
+					callBack.call(this.parent,gInf);
+					close();	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="gwRPC" showBusyCursor="true" useProxy="false" result="set_gateways(event)"/>
+	<mx:HTTPService id="addRPC" showBusyCursor="true" useProxy="false" result="add(event)"/>
+	<mx:HTTPService id="updateRPC" showBusyCursor="true" useProxy="false" result="update(event)"/>
+	
+	<mx:Array id="validators">
+		<mx:NumberValidator required="true" source="{capacity}" property="text"
+			allowNegative="false" minValue="1"
+			requiredFieldError="请填写监控点容量" 
+			integerError="监控点容量应该为数字"  
+			invalidCharError="监控点容量应该为数字"/>
+		<mx:NumberValidator required="true" source="{concurrency}" property="text"
+			allowNegative="false" minValue="1" maxValue="{capacity.text}" 
+			exceedsMaxError="最大并发数量不能超过监控点容量" 
+			requiredFieldError="请填写最大并发数量" 
+			integerError="最大并发数量应该为数字"  
+			invalidCharError="最大并发数量应该为数字"/>	
+	</mx:Array>
+	
+	<mx:Form width="100%" defaultButton="{submit}">
+		<mx:FormItem label="请选择可访问网关">
+			<mx:ComboBox id="gateway" dataProvider="{gateways}" labelField="name"/>
+		</mx:FormItem>
+		<mx:FormItem label="监控点容量">
+			<mx:TextInput id="capacity" text="{gInf.@capacity}"/>	
+		</mx:FormItem>
+		<mx:FormItem label="最大并发数量">
+			<mx:TextInput id="concurrency" text="{gInf.@concurrency}"/>	
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="保存" id="submit" enabled="false" click="submit.enabled=false;submit_data()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+</TitleWin>

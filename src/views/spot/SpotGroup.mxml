@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="utf-8"?>
+<views:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" width="500"
+ 	creationComplete="init()" xmlns:views="views.*" title="监控点分组">
+	<mx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.events.ItemClickEvent;
+			import mx.controls.Alert;
+			import mx.utils.StringUtil;
+			import utils.Utils;
+			import mx.rpc.events.ResultEvent;
+			import flash.events.Event;
+			import mx.events.DragEvent;
+            import mx.managers.DragManager;
+            import mx.core.DragSource;
+            import mx.events.CloseEvent;
+            import mx.core.UIComponent;
+            import mx.controls.buttonBarClasses.ButtonBarButton;
+            import utils.Icons;
+			
+			[Bindable]
+			public var groups:XML;
+			private var group_root:XML;
+			private var modifyAction:Boolean = false;
+			
+			private var bModify:ButtonBarButton;
+			private var bNew:ButtonBarButton;
+			private var bSave:ButtonBarButton;
+			private var bCancel:ButtonBarButton;
+			
+			private function init():void {
+				bNew = buttons1.getChildAt(0) as ButtonBarButton;
+				bModify = buttons1.getChildAt(1) as ButtonBarButton;
+				bModify.enabled = false;
+				//set_group();
+				spotGroupsRPC.url = Utils.get_url("/spot_groups/list");
+				spotGroupsRPC.send();
+			}
+			
+			private function set_sgs(event:ResultEvent):void {
+				groups = XML(event.result);
+				set_group();
+			}
+			
+			private function init_buttons2():void {
+				bSave = buttons2.getChildAt(0) as ButtonBarButton;
+				bCancel = buttons2.getChildAt(1) as ButtonBarButton;	
+			}
+			
+			private function set_group():void {
+				group_root = groups.Group.(@parent=="1")[0];
+				groupTree.selectedIndex = 0;
+			}
+			
+			private function isGroup(node:XML):Boolean {
+				return node.localName().toString() == "Group";
+			}
+         	
+			private function set_icon(item:Object):* {
+				if(item.@parent == '1') return Icons.HOME;
+				if(isGroup(item as XML)) {
+					//return groupTree.isItemOpen(item)? Icons.FOLDER_OPEN:Icons.FOLDER;
+					return groupTree.isItemOpen(item)? groupTree.getStyle('folderOpenIcon'):groupTree.getStyle('folderClosedIcon');
+				} else return Icons.MONITOR;		
+			}
+			
+			private function expandGroup():void {
+				var node:XML = groupTree.selectedItem as XML;
+				if(isGroup(node))
+            		groupTree.expandItem(node,!groupTree.isItemOpen(node));
+			}
+			
+			private var _draggedItem:XML;
+
+			private function onDragStart(event:DragEvent):void {
+				this._draggedItem = groupTree.selectedItem as XML;
+				if(isGroup(_draggedItem)) { //开始拖动时将被拖动对象闭合，保证整体拖动并避免将父节点拖放到子节点上
+					groupTree.expandItem(_draggedItem,false);
+				}
+			}
+			
+            private function onDragEnter( event:DragEvent ):void
+            {
+                event.preventDefault();
+                //event.currentTarget.showDropFeedback(event);
+                DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+            }
+
+            private function onDragOver( event:DragEvent ) : void {
+                event.preventDefault();
+                event.currentTarget.showDropFeedback(event);
+
+                groupTree.selectedIndex = groupTree.calculateDropIndex(event);
+                var node:XML = groupTree.selectedItem as XML;
+				
+				if(_draggedItem == node || !isGroup(node)) { //保证拖放目的是组并不是本身
+					DragManager.showFeedback(DragManager.NONE);
+                    return;
+				}
+				
+				groupTree.expandItem(node,true); //如果是组将其展开
+				if (_draggedItem.parent() == node) { //不能拖放到本组
+					DragManager.showFeedback(DragManager.NONE);
+                    return;
+				}
+
+                DragManager.showFeedback(DragManager.MOVE);
+            }
+
+            private function onDragDrop( event:DragEvent ):void {
+                event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);
+
+                groupTree.selectedIndex = groupTree.calculateDropIndex(event);
+                var node:XML = groupTree.selectedItem as XML; //目的组
+				var children:XMLList = XMLList(this._draggedItem.parent().children());
+                for(var i:int = 0 ; i < children.length(); i++) {
+                    if( children[i] == this._draggedItem ) {
+                        delete children[i];  //先从原组删除自己
+                    }
+                }
+                var gChildren:XMLList = node.child("Group");
+                children = node.children();
+                if(!isGroup(this._draggedItem) || children.length() == 0) {
+                	node.appendChild(this._draggedItem); //如果被拖放对象不是组直接追加,如果目的组是空的直接追加
+                } else {
+                	if(gChildren.length() == 0) //如果目的组没有子分组放到最前面
+                		node.insertChildBefore(children[0], this._draggedItem);
+                	else //如果有子分组放到最后一个子分组后面
+                		node.insertChildAfter(gChildren[gChildren.length() - 1], this._draggedItem);
+                }	
+                groupTree.enabled = false; //避免其他操作
+                var params:URLVariables = new URLVariables;
+                params.id = this._draggedItem.@id;
+				params.parent_id = node.@id;
+                if(isGroup(this._draggedItem)) {
+					changeParentRPC.url = utils.Utils.get_url("/spot_groups/change_parent");
+                } else {
+                	changeParentRPC.url = utils.Utils.get_url("/spots/change_parent");
+                }
+				changeParentRPC.send(params); 
+            }
+            
+            private function done_change_parent():void {
+            	groupTree.enabled = true;
+            }
+
+            private function onDragComplete(event:DragEvent):void {
+            	onDragExit(event);
+                groupTree.selectedIndex = -1;
+            }
+            
+            private function onDragExit(event:DragEvent):void {
+            	event.preventDefault();
+                event.currentTarget.hideDropFeedback(event);	
+            }
+            
+            private function add_group():void {
+            	if(!groupTree.selectedItem) {
+            		groupTree.selectedIndex = 0;
+            	}
+            	this.modifyAction = false;
+            	showEdit();
+            }
+            
+            private function showEdit():void {
+            	button_bar.selectedIndex = 1;
+            	this.groupTree.enabled = false; //避免其他操作
+            }
+            
+            private function toggleNameText():void {
+            	if(this.modifyAction) {
+            		groupName.text = (groupTree.selectedItem as XML).@name;
+            	} else {
+            		groupName.text = "";
+            	}
+            }
+            
+            private function cancel_edit():void {
+            	button_bar.selectedIndex = 0;
+            	this.modifyAction = false;
+            	this.groupTree.enabled = true;
+            }
+            
+            private function toggleMRButton():void {
+            	if(groupTree.selectedIndex == -1) return;
+            	var node:XML = groupTree.selectedItem as XML;
+            	bNew.enabled = isGroup(node); //如果被选对象是组允许添加
+            	bModify.enabled = bNew.enabled && node.@parent != "1"; //根不能修改名称
+            }
+            
+            private function modifyGroupName():void {
+            	this.modifyAction = true;
+            	this.showEdit();
+            }
+            
+            private function do_add_group(event:ResultEvent):void {
+            	var node:XML = groupTree.selectedItem as XML;
+            	var id:String = event.result.toString(); //获取新组id
+				var new_group:XML = <Group/>;
+				new_group.@name = groupName.text;
+				new_group.@id = id;
+				new_group.@parent_id = node.@id
+				new_group.@isBranch = "true";
+				groupName.text = "";	
+				var selIdx:int = groupTree.selectedIndex + 1;
+				var gs:XMLList = node.children();
+				if(gs.length() == 0)
+					node.appendChild(new_group); //如果没有子分组直接最佳
+				else
+					node.insertChildBefore(gs[0], new_group); //放到第一个
+				groupTree.selectedIndex = selIdx; //将新组置为选定状态
+				this.callLater(function():void {groupTree.expandItem(groupTree.selectedItem,true)}); //展开新组
+			}
+			
+			private function do_save_group():void {
+				var node:XML = groupTree.selectedItem as XML;
+				node.@name = groupName.text;
+			}
+			
+			private function save_group_name():void {
+				var params:URLVariables = new URLVariables;
+				if(this.modifyAction) {
+					spotGroupSaveRPC.url = utils.Utils.get_url("/spot_groups/update");
+					params["group[name]"] = groupName.text;
+					params["group[alias]"] = groupName.text;
+					params.id = (groupTree.selectedItem as XML).@id
+					spotGroupSaveRPC.send(params);
+				} 
+				else {
+					spotGroupAddRPC.url = utils.Utils.get_url("/spot_groups/add");
+					params["group[name]"] = groupName.text;
+					params["group[alias]"] = groupName.text;
+					params["group[parent_id]"] = (groupTree.selectedItem as XML).@id
+					spotGroupAddRPC.send(params);
+				}
+				cancel_edit();	
+			}
+			
+			private function group_name_change():void {
+				bSave.enabled = mx.utils.StringUtil.trim(groupName.text) != ""
+			}
+
+			private function remove_group(event:CloseEvent):void {
+				if (event.detail == Alert.YES) {
+					bNew.enabled = false;
+					bModify.enabled = false;
+					groupTree.enabled = false; //避免其他操作
+					spotGroupRemoveRPC.url = utils.Utils.get_url("/spot_groups/remove/" + _draggedItem.@id);
+					spotGroupRemoveRPC.send();
+				}
+			}
+			
+			private function do_remove_group():void {
+				var children:XMLList = XMLList(_draggedItem.parent()).children();
+                for(var i:int = 0 ; i < children.length(); i++) {
+                   	if( children[i] == _draggedItem ) {
+                   		move_spots(children[i]);
+                       	delete children[i];
+                   	}
+                }
+                groupTree.enabled = true;
+			}
+			
+			private function move_spots(node:Object):void { //将被删除组的节点移到根节点下
+				var children:XMLList = (node as XML).children();
+				for(var i:int = 0; i < children.length(); i++) {
+					if(isGroup(children[i])) {
+						move_spots(children[i]);
+					} else {
+						group_root.appendChild(children[i]);
+					}
+				}	
+			}
+			
+			private function trashDragEnter(event:DragEvent):void {
+				if(isGroup(_draggedItem) && _draggedItem != group_root) {
+					DragManager.acceptDragDrop(UIComponent(event.currentTarget));
+				}	
+			}
+			
+			private function trashDragOver(event:DragEvent):void {
+				if(isGroup(_draggedItem)) {
+					DragManager.showFeedback(DragManager.MOVE);
+				} else {
+					DragManager.showFeedback(DragManager.NONE);
+   				}
+			}
+
+			private function labelFunction(item:XML):String {
+				if(isGroup(item)) {
+					var gl:Number = item.child('Group').length();
+					var g:String = "";
+					if(gl > 0) g = "组:" + gl + ",";
+					return item.@name + " (" + g + "点" + item.child('Spot').length() + ")";
+				}
+				return item.@name;
+			}
+			
+			private function buttons1Click(event:ItemClickEvent):void {
+				switch(event.index) {
+					case 0:
+						add_group();
+						break;
+					case 1:
+						modifyGroupName();
+						break;
+				}
+			}
+			
+			private function buttons2Click(event:ItemClickEvent):void {
+				switch(event.index) {
+					case 0:
+						save_group_name();
+						break;
+					case 1:
+						cancel_edit();
+						break;
+				}
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="spotGroupsRPC" useProxy="false" showBusyCursor="true" resultFormat="xml" result="set_sgs(event)"/>
+	<mx:HTTPService id="spotGroupAddRPC" result="do_add_group(event)" showBusyCursor="true" resultFormat="text"/>
+	<mx:HTTPService id="spotGroupSaveRPC" result="do_save_group()" showBusyCursor="true"/>
+	<mx:HTTPService id="spotGroupRemoveRPC" result="do_remove_group()" showBusyCursor="true"/>
+	<mx:HTTPService id="changeParentRPC" result="done_change_parent()" showBusyCursor="true"/>
+	<mx:Validator id="validateGroupName" invalid="bSave.enabled=false;" source="{groupName}" property="text" required="true" requiredFieldError="请填写分组名称"/>
+	
+	<mx:Fade id="showFlip" alphaFrom="0" alphaTo="1" duration="200"/>
+	<mx:Fade id="hideFlip" alphaFrom="1" alphaTo="0" duration="200"/>
+	
+	<mx:VBox width="100%" height="100%" x="0" y="0">
+		<views:Search tree="{groupTree}" xml="{groups}"/>	
+		<mx:Tree id="groupTree" width="100%" height="100%" dataProvider="{groups}" 
+				labelFunction="{labelFunction}" openItems="{groups.Group}"
+				iconFunction="set_icon" showRoot="false" rowHeight="18"
+				dragEnabled="true" dragMoveEnabled="false" dropEnabled="true"
+			  	dragDrop="onDragDrop(event)" dragOver="onDragOver(event)"
+			  	dragEnter="onDragEnter(event)" dragComplete="onDragComplete(event)"
+			  	dragStart="onDragStart(event)" doubleClickEnabled="true" doubleClick="expandGroup()"
+			  	dragExit="onDragExit(event)" click="toggleMRButton()" 
+				allowDragSelection="false" allowMultipleSelection="false"/>
+	</mx:VBox>
+	
+	<mx:ControlBar>
+		<mx:ViewStack id="button_bar" width="100%" height="100%" selectedIndex="0">
+			<mx:HBox width="100%" height="100%" verticalScrollPolicy="off" showEffect="{showFlip}" hideEffect="{hideFlip}">
+				<mx:ButtonBar id="buttons1" itemClick="buttons1Click(event)">
+					<mx:dataProvider>
+						<mx:String>添加分组</mx:String>
+						<mx:String>修改名称</mx:String>
+					</mx:dataProvider>
+				</mx:ButtonBar>
+				<mx:Spacer width="100%"/>
+				<views:Trash dragEnter="trashDragEnter(event)" dragEnterOverride="true"
+						dragOver="trashDragOver(event)" callBack="remove_group"
+					 	confirm="  如果删除该分组,其子分组被连同删除.确定继续?      "
+						toolTip="将监控点分组从树中拖放到此处删除分组"/>
+			</mx:HBox>						
+			<mx:HBox width="100%" height="100%" show="toggleNameText()"
+				showEffect="{showFlip}" hideEffect="{hideFlip}" creationComplete="init_buttons2()">
+				<mx:Label id="groupLabel" text="分组名称"/>
+				<mx:TextInput id="groupName" change="group_name_change()"/>
+				<mx:ButtonBar id="buttons2" horizontalGap="-1" itemClick="buttons2Click(event)">
+					<mx:dataProvider>
+						<mx:String>保存</mx:String>
+						<mx:String>取消</mx:String>
+					</mx:dataProvider>
+				</mx:ButtonBar>
+			</mx:HBox>
+		</mx:ViewStack>
+	</mx:ControlBar>
+</views:TitleWin>

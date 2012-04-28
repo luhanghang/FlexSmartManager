@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="0" height="20" doubleClickEnabled="true" 
+	mouseChildren="false" useHandCursor="true" y="20" click="togglePosition(event)" 
+	styleName="scheduleItem" dropShadowEnabled="true" buttonMode="true" mouseOver="moveToTop(event)" 
+	horizontalScrollPolicy="off" verticalScrollPolicy="off"
+	removedEffect="{fade}" creationComplete="init()" maxHeight="20" minHeight="5" 
+	resizeEffect="{resize}" moveEffect="{mv}" doubleClick="show_replayer()">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.ResizeEvent;
+			import mx.events.MoveEvent;
+			import mx.controls.Label;
+			import utils.Utils;
+			import mx.managers.PopUpManager;
+			
+			public var recordId:String;		
+			public var startHour:String;
+			public var startMin:String;			
+			public var endHour:String;
+			public var endMin:String;
+			public var state:String;
+			public var date:String;
+			public var error:String;
+			public var path_file:String;
+			public var spotName:String;
+			
+			public function init():void {
+				setState();
+				var c:Object = -1;
+				if(c == null || c== -1) c = Math.round( Math.random()*0xFFFFFF );
+				setStyle("backgroundColor", c);
+				setStyle("borderColor", c);
+				setToolTip();
+				resize.widthFrom = 0;
+				resize.play();
+				mv.xFrom = x;
+				mv.play();
+				title.text = startHour + ":" + startMin + "-" + endHour + ":" + endMin;
+			}
+			
+			public function setToolTip():void {
+				toolTip = date + " " + startHour + ":" + startMin + "到" + endHour + ":" + endMin + " 录像文件:" + path_file;
+			}
+			
+			private function moveToTop(event:MouseEvent):void {
+				this.parent.setChildIndex(this, this.parent.numChildren - 1);
+			}
+			
+			private function togglePosition(event:MouseEvent):void {
+				if(y == 20) y = 12;
+				else y = 20;
+			}
+			
+			private var orgColor:Object;
+			public function edit():void {
+				orgColor = this.getStyle("backgroundColor");
+				setStyle("backgroundColor",0);
+				setStyle("borderColor",0);
+			}
+			
+			public function restore():void {
+				setStyle("backgroundColor", orgColor);
+				setStyle("borderColor",orgColor);
+			}
+			
+			public function setState():void {
+				styleName = "scheduleItem";
+			}
+			
+			private function show_replayer():void {
+//				var r:Replayer = new Replayer;
+//				r.title = this.spotName + " " + date + " " + title.text;
+//				r.path_file = this.path_file;
+//				PopUpManager.addPopUp(r,this.parentApplication.parent,true);
+//				PopUpManager.centerPopUp(r);
+				var url:String = "/record_files/play/" + recordId;
+				var params:URLVariables = new URLVariables;
+				params.spot_name = spotName; 
+				//params.root = SmartVision.conf.root;
+				var request:URLRequest = new URLRequest(url);
+				request.method = URLRequestMethod.POST;
+				request.data = params; 
+				navigateToURL(request,"_blank");
+			}
+		]]>
+	</mx:Script>
+	<mx:Resize id="resize" heightFrom="{height}" widthTo="{width}" heightTo="{height}" duration="500" target="{this}" effectEnd="resize.widthFrom=width"/>
+	<mx:Move id="mv" xFrom="0" xTo="{x}" duration="500" target="{this}" effectEnd="mv.xFrom = x"/>
+	<mx:Fade id="fade" alphaFrom="1" alphaTo="0"/>
+	<mx:Label id="title" text="" fontSize="8"/>
+</mx:Canvas>

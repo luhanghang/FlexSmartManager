@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="utf-8"?>
+<views:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:u="utils.*" width="500"
+ 	creationComplete="init()" xmlns:views="views.*" title="系统监看员">
+ 	<mx:Metadata>
+ 		[Event(name="Popup", type="events.PopupEvent")]
+ 		[Event(name="CloseWin")]
+ 	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import mx.collections.ArrayCollection;
+			import events.PopupEvent;
+			import mx.controls.Alert;
+			import mx.events.DataGridEvent;
+			import mx.collections.XMLListCollection;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			import mx.utils.StringUtil;
+			import mx.utils.ObjectProxy;
+			
+			[Bindable]
+			private var users:XML;
+			
+			[Bindable]
+			private var h:Number;
+			
+			[Bindable]
+			private var user:XML = <Account/>;
+			
+			[Bindable]
+      		private var accounts:XML;
+      		
+      		private function init():void {
+      			formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				
+				h = userInfo.height;
+				userRPC.url = Utils.get_url("/users/monitor_users");
+				userRPC.send(); 				
+			} 
+			
+			private function set_users(event:ResultEvent):void {
+				users = XML(event.result);
+				list.dataProvider = users.Account;
+				list.visible = true;
+				accountRPC.url = utils.Utils.get_url("/users/accounts");
+				accountRPC.send();
+			}
+			
+			private function init_accounts(event:ResultEvent):void {
+				accounts = XML(event.result);	
+			}
+			
+			private function labelFunc(item:Object, column:DataGridColumn):String {
+				var _item:XML = item as XML;
+				return _item.childIndex().toString();
+            }
+            
+            private function new_user(event:MouseEvent):void {
+            	user = <Account/>;
+				showUserInf();
+			}
+			
+			private function showUserInf():void {
+				userInfo.visible = true;
+				userInfo.includeInLayout = true;
+				list.enabled = false;
+				toolbar.enabled = false;
+			}
+			
+			private function hideUserInf():void {
+				userInfo.visible = false;
+				userInfo.includeInLayout = false;
+				list.enabled = true;
+				toolbar.enabled = true;
+				user = <Account/>;
+			}
+			
+			private function save_user(user:Object):void {
+				
+			}
+			
+			private function edit(event:MouseEvent):void {
+				user = list.selectedItem as XML;
+				showUserInf();	
+			}
+			
+			private function remove(event:CloseEvent):void {
+				 if(event.detail == Alert.YES) {
+				 	var u:XML = list.selectedItem as XML;
+					removeRPC.url = Utils.get_url("/users/remove/" + u.@id);
+					removeRPC.send(); 	
+				 }
+			}
+			
+			private function removed(event:ResultEvent):void {
+				var id:String = event.result.toString();
+				var _users:XMLList = users.Account;
+				var _accounts:XMLList = accounts.Account;
+				for(var i:Number = 0; i < _users.length(); i++) {
+					if(_users[i].@id == id) {
+				 		delete _users[i];
+				 		break;
+				 	}
+				}
+				for(var i:Number = 0; i < _accounts.length(); i++) {
+					if(_accounts[i].@id == id) {
+				 		delete _accounts[i];
+				 		break;
+				 	}
+				}
+				list.dataProvider = users.Account;
+			}
+			
+			private function submit_data():void {
+				saveRPC.url = Utils.get_url("/users/save/" + user.@id);
+				var params:URLVariables = new URLVariables;
+				params['user[account]'] = account.text;
+				params['user[passwd]'] = passwd.text;
+				params['user[realname]'] = realname.text;
+				params['user[user_group_id]'] = users.Group.@id;
+				user.@account = params['user[account]'];
+				user.@passwd = params['user[passwd]'];
+				user.@realname = params['user[realname]'];
+				saveRPC.send(params);
+				userInfo.visible = false;
+				userInfo.includeInLayout = false;
+			}
+			
+			private function cancel_edit():void {
+				hideUserInf();
+			}
+			
+			private function saved(event:ResultEvent):void {				
+				var id:String = StringUtil.trim(event.result.toString());
+				if(!user.@id || StringUtil.trim(user.@id) == "") {			
+					user.@id = id;
+					accounts.appendChild(user);
+					users.appendChild(user);
+					list.dataProvider = users.Account;
+					hideUserInf();
+					return;
+				}
+				for each(var account:XML in accounts.Account) {
+					if(account.@id == id) {
+						account.@account = user.@account;
+						break;
+					} 
+				}
+				for each(var account:XML in users.Account) {
+					if(account.@id == id) {
+						account.@account = user.@account;
+						account.@realname = user.@realname;
+						account.@passwd = user.@passwd;
+						break;
+					} 
+				}
+				list.dataProvider = users.Account;
+				hideUserInf();
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="userRPC" useProxy="false" showBusyCursor="true" result="set_users(event)" resultFormat="xml"/>
+	<mx:HTTPService id="accountRPC" useProxy="false" showBusyCursor="true" result="init_accounts(event)" resultFormat="xml"/>
+	<mx:HTTPService id="saveRPC" useProxy="false" showBusyCursor="true" result="saved(event)" resultFormat="text"/>
+	<mx:HTTPService id="removeRPC" useProxy="false" showBusyCursor="true" result="removed(event)" resultFormat="text"/>
+	
+	<mx:Array id="validators">
+		<u:UniqueValidatorXML  list="{accounts.Account}" field="@account" required="true" property="text" source="{account}" requiredFieldError="登录账号必须填写"
+		 errorMessage="登录账号已被使用" selfObj="{user}"/>
+		<u:PasswordValidator required="true" property="text" source="{passwd}" requiredFieldError="登录密码必须填写"/>
+		<mx:Validator required="true" property="text" source="{realname}" requiredFieldError="用户姓名必须填写"/>
+	</mx:Array>
+	
+	<mx:Resize heightFrom="0" heightTo="{h}" duration="200" id="showEffect"/>
+	<mx:Resize heightTo="0" heightFrom="{h}" duration="200" id="hideEffect"/>
+	
+	<mx:VBox width="100%" height="100%">
+		<mx:Canvas width="100%" id="userInfo" visible="false" horizontalScrollPolicy="off" verticalScrollPolicy="off"
+			includeInLayout="false" showEffect="{showEffect}" hideEffect="{hideEffect}">
+			<mx:VBox width="100%" left="20">
+				<mx:Spacer height="15"/>
+				<mx:Form defaultButton="{submit}" width="100%" height="100%">
+					<mx:FormItem label="登录账号" required="true">
+						<mx:TextInput id="account" text="{user.@account}"/>
+					</mx:FormItem>
+					<mx:FormItem label="登录密码" required="true">
+						<mx:TextInput id="passwd" text="{user.@passwd}"/>
+					</mx:FormItem>
+					<mx:FormItem label="用户姓名" required="true">
+						<mx:TextInput id="realname" text="{user.@realname}"/>
+					</mx:FormItem>
+					<mx:FormItem label="Label" visible="false" includeInLayout="false">
+						<mx:TextInput id="userId" text="{user.@id}"/>
+					</mx:FormItem>
+				</mx:Form>
+				<mx:HBox>
+					<mx:Spacer height="5"/>
+					<mx:Button label="保存" id="submit" enabled="false" click="submit.enabled=false;submit_data()"/>
+					<mx:Button label="取消" click="cancel_edit()"/>
+				</mx:HBox>
+				<mx:Spacer height="15"/>
+			</mx:VBox>	
+		</mx:Canvas>
+		<mx:DataGrid id="list" width="100%" height="100%" visible="false"
+			editable="false" dragEnabled="true" click="bModify.visible = list.selectedIndex >= 0">
+			<mx:columns>
+				<mx:DataGridColumn headerText="序号" labelFunction="labelFunc" width="40" resizable="false" sortable="false"/>
+				<mx:DataGridColumn headerText="用户姓名" dataField="@realname"/>
+				<mx:DataGridColumn headerText="登录账号" dataField="@account"/>
+				<mx:DataGridColumn headerText="密码" dataField="@passwd"/>
+			</mx:columns>
+		</mx:DataGrid>
+		<mx:ControlBar id="toolbar" horizontalScrollPolicy="off" verticalScrollPolicy="off" width="100%">
+			<mx:HBox width="100%" horizontalScrollPolicy="off" verticalScrollPolicy="off">
+				<mx:Button label="添加" click="new_user(event)"/>
+				<mx:Button id="bModify" label="修改" click="edit(event)" visible="false"/>
+				<mx:Spacer width="100%"/>
+				<views:Trash id="trash" src="{list}" confirm="确定删除该用户?     " callBack="remove"/>
+			</mx:HBox>			
+		</mx:ControlBar>
+		</mx:VBox>
+</views:TitleWin>

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="100%" height="50" removedEffect="{fade}" mouseMove="dragIt(event)"
+	horizontalScrollPolicy="off" verticalScrollPolicy="off">
+	<mx:Script>
+		<![CDATA[
+			import mx.core.DragSource;
+			import mx.controls.Alert;
+			import utils.Utils;
+			import mx.events.ResizeEvent;
+			import mx.managers.DragManager;
+//			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			[Bindable]
+			public var date:String;
+			
+			public function setScheduleItem(item:ScheduleItemDaily):void {
+				item.x = hoursC[int(item.startHour)].x + hoursC[int(item.startHour)].width / 60 * int(item.startMin) + 2;
+				if(item.endHour == "00" || item.endHour == '0') {
+					item.width = hoursC[23].x + hoursC[23].width - item.x;	
+				} else {
+					item.width = hoursC[int(item.endHour)].x + hoursC[int(item.endHour)].width / 60 * int(item.endMin) - item.x + 3;
+				}	
+			}
+			
+			private function resize(event:ResizeEvent):void {
+				callLater(function():void {
+					var c:Canvas = event.target as Canvas;
+					for each(var item:ScheduleItemDaily in c.getChildren()) {
+						setScheduleItem(item);
+					} 
+				});
+			}
+			
+			public function removeAll():void {
+				daysC.removeAllChildren();
+			}
+			
+			public function addItem(startHour:String, startMin:String, endHour:String, endMin:String, lastTime:String, state:Boolean, color:Object):ScheduleItemDaily {
+				var c:ScheduleItemDaily = new ScheduleItemDaily;
+				c.startHour = startHour;
+				c.startMin = startMin;
+				c.endHour = endHour;
+				c.endMin = endMin;
+				c.lastTime = lastTime;
+				c.date = date;
+				c.state = state;
+				c.color = color; 
+				setScheduleItem(c);
+				daysC.addChild(c);
+				return c;
+			}
+			
+			private function dragIt(event:MouseEvent):void {
+				var ds:DragSource = new DragSource
+
+	            var canvasProxy:Canvas = new Canvas;
+	            var l:Label = new Label;
+	            l.text = date;
+	            l.setStyle("color",0xffffff);
+	            canvasProxy.addChild(l);
+	            canvasProxy.styleName = styleName;
+	            canvasProxy.x = event.localX - 20;
+	            canvasProxy.y = event.localY - 10; 
+	            DragManager.doDrag(this, ds, event, canvasProxy);
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:Fade id="fade" alphaFrom="1" alphaTo="0"/>
+	
+	<mx:HBox x="0" y="0" width="100%" height="100%" horizontalGap="-1" styleName="menu" verticalAlign="middle"
+ 		paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0">
+		<mx:Label text="{date}" width="4%" paddingLeft="3" fontSize="8" fontWeight="bold" color="#ffffff" alpha="0.6"/>
+		<mx:Repeater id="rH" dataProvider="{Schedule.hours}">
+			<mx:Canvas id="hoursC" height="100%" styleName="menu" width="4%" borderSides="left"
+				 paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0">
+				 <mx:Label fontWeight="bold" fontSize="8" text="{rH.currentItem}"/>
+				 <mx:HBox width="100%" height="100%" x="0" y="0" horizontalGap="-2">
+				 	<mx:Canvas width="50%" height="100%" styleName="menu" 
+				 			borderSides="left" paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0"/>		
+				 	<mx:Canvas width="50%" height="100%" styleName="menu" 
+				 			borderSides="left" paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0"/>		
+				 </mx:HBox>
+			</mx:Canvas>	 
+		</mx:Repeater>	
+	</mx:HBox>
+	<mx:Canvas resize="resize(event)" id="daysC" x="0" y="0" horizontalScrollPolicy="off" verticalScrollPolicy="off" 
+		width="100%" height="100%" paddingLeft="0" paddingRight="0" paddingTop="0" paddingBottom="0"/>
+</mx:Canvas>

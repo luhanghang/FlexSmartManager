@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="600" height="600"
+	xmlns:u="utils.*" 
+	xmlns:v="views.*" creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import mx.managers.PopUpManager;
+			
+			[Bindable]
+			public var path_file:String;
+			
+			public function init():void{
+				
+			}
+			
+			override protected function close():void {
+				PopUpManager.removePopUp(this);
+			}
+		]]>
+	</mx:Script>
+	<mx:VBox width="100%" height="100%">
+		<mx:VideoDisplay id="video" width="100%" height="100%" autoPlay="false" source="{path_file}"/>
+		<mx:HBox width="100%" height="50">
+			<mx:Button label="播放" click="video.play()"/>
+			<mx:Button label="暂停" click="video.pause()"/>
+			<mx:Button label="停止" click="video.stop()"/>
+		</mx:HBox>
+		<mx:HBox width="100%" height="50">
+		</mx:HBox>
+	</mx:VBox>	
+</v:TitleWin>

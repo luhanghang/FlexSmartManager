@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="400" creationComplete="init()" title="字典管理"
+	xmlns:pv3dEffects="ws.tink.flex.pv3dEffects.*">
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import mx.events.ListEvent;
+			import mx.controls.Alert;
+			import views.gateway.Gateway;
+			import mx.utils.StringUtil;
+			import utils.Utils;
+			
+			[Bindable]
+			private var dictionary:XML;
+			
+			private var isDoubleClick:Boolean = false;
+			private var nodeSelected:XML;
+			
+			private function init():void {
+				dictionary = <Dictionary/>;
+				for each(var item:XML in Gateway.DICTIONARY.children()) {
+					if(item.localName().toString() != "Devices") {
+						dictionary.appendChild(item);
+					}
+				}
+			}
+			
+			private function labelFunc(item:Object):String {
+				return item.localName() == "Item"? item.@name:item.@description;
+			}
+			
+			private function toggle_add_button():void {
+				this.isDoubleClick = false; 
+                setTimeout(laterClickFunction,300);
+				nodeSelected = tree.selectedItem as XML;
+			}
+			
+			private function laterClickFunction():void {
+				if(this.isDoubleClick) rename();
+				else {
+					tree.expandItem(nodeSelected, isFolder());
+					bAdd.enabled = isFolder();
+				}	
+			}
+			
+			private function treeDoubleClick(event:MouseEvent):void {
+				this.isDoubleClick = true;
+			}
+			
+			private function rename():void {
+				if(!isFolder()) {
+					tree.editable = true;
+					tree.editedItemPosition = {rowIndex: tree.selectedIndex};
+				}
+			}
+			
+			private function isFolder():Boolean {
+				return nodeSelected != null && nodeSelected.localName() != "Item";
+			}
+			
+			private function new_item():void {
+				vs.selectedIndex = 1;
+				item_name.text = "";
+			}
+			
+			private function add_item():void {
+				var name:String = StringUtil.trim(item_name.text); 
+				if(name != "") {
+					var item:XML = <Item/>;
+					item.@id = nodeSelected.Item.length();
+					item.@name = name;
+					nodeSelected.appendChild(item);
+					dictRPC.url = Utils.get_url("/dictionary/add");
+					var params:URLVariables = new URLVariables;
+					params.category = nodeSelected.localName();
+					params.xml = item.toXMLString();
+					dictRPC.send(params);
+					vs.selectedIndex = 0;
+				}
+			}
+			
+			private function do_rename(event:ListEvent):void {
+				event.preventDefault();
+				var newValue:String = StringUtil.trim(TextInput(tree.itemEditorInstance).text);
+				if(newValue != '' && newValue != StringUtil.trim(nodeSelected.@name)) {
+					nodeSelected.@name = newValue;
+					dictRPC.url = Utils.get_url("/dictionary/update");
+					var params:URLVariables = new URLVariables;
+					params.category = nodeSelected.parent().localName();
+					params.id = nodeSelected.@id;
+					params.value = newValue;
+					dictRPC.send(params);
+				}
+				tree.destroyItemEditor();
+				tree.editable = false;
+			}
+			
+			private function remove_item(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					nodeSelected = tree.selectedItem as XML;
+					var items:XMLList = nodeSelected.parent().Item;
+					for(var i:Number = 0; i < items.length(); i++) {
+						if(items[i].@id == nodeSelected.@id) {
+							delete items[i];
+							dictRPC.url = Utils.get_url("/dictionary/destroy");
+							var params:URLVariables = new URLVariables;
+							params.category = nodeSelected.localName();
+							params.id = nodeSelected.@id;
+							dictRPC.send(params);
+							break;
+						}
+					}	
+				}
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="dictRPC" showBusyCursor="true" useProxy="false" method="POST"/>
+	
+	<mx:Tree id="tree" width="100%" height="100%" dataProvider="{dictionary}" itemEditEnd="do_rename(event)"
+		showRoot="false" labelFunction="labelFunc" rowHeight="20" editorXOffset="30" dragEnabled="true" dragMoveEnabled="false" 
+		click="toggle_add_button()" doubleClickEnabled="true" doubleClick="treeDoubleClick(event)"/>
+	<mx:ControlBar verticalAlign="bottom">
+		<mx:ViewStack id="vs" width="100%">
+			<mx:Canvas width="100%" verticalScrollPolicy="off" horizontalScrollPolicy="off">
+				<mx:HBox width="100%" paddingLeft="5" paddingRight="5">
+					<mx:Button label="添加项" id="bAdd" enabled="false" click="new_item()"/>
+					<mx:Button label="关闭" click="close()"/>
+					<!--
+					<mx:Spacer width="100%"/>
+					<Trash src="{tree}" confirm="确定删除选中项目?" callBack="remove_item" onlyTags="['Item']"/>
+					-->
+				</mx:HBox>
+			</mx:Canvas>
+			<mx:Canvas width="100%">
+				<mx:HBox width="100%">
+					<mx:Label text="名称"/>
+					<mx:TextInput id="item_name"/>
+					<mx:Button label="保存" click="add_item()"/>
+					<mx:Button label="取消" click="vs.selectedIndex = 0"/>
+				</mx:HBox>
+			</mx:Canvas>
+		</mx:ViewStack>
+	</mx:ControlBar>	
+</TitleWin>

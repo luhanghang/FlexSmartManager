@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml"
+	width="290" height="358" title="监控点信息"
+	xmlns:u="utils.*"
+	xmlns:v="views.*" 
+	creationComplete="init()">
+	<mx:Script>
+		<![CDATA[
+			import utils.Alert;
+			import utils.Config;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			
+			[Bindable]
+			public var spot:Object;
+			public var gw_id:String;
+			
+			[Bindable]
+			public var spots:ArrayCollection;
+			
+			private function init():void{
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+			}
+			
+			private function submit_data():void {
+				submit.enabled = false;
+				var params:URLVariables = new URLVariables;
+				params['spot[name]'] = spot_name.text;
+				params['spot[port]'] = service_port.text;
+				params['spot[sip_address]'] = unique_id.text
+				params['spot[address]'] = address.text
+				params['spot[device_name]'] = device_name.text
+				params['spot[device_type]'] = device_type.text
+				params['spot[audio_port]'] = audio_port.text
+				params['spot[vendor]'] = vendor.text
+				params['spot[ptz_protocal]'] = ptz_protocal.text
+				params['spot[io_address]'] = io_addr.text
+				params['spot[driver]'] = driver.text
+				spotRequest.url = utils.Utils.get_url("/gateway/save_spot/" + gw_id + "?seq=" + spot_seq.text);
+				spotRequest.send(params);
+			}
+			
+			private function refresh(event:ResultEvent):void {
+				set_data();
+				callBack.call(this.parent, spot, spot_seq.text == "");
+				close();
+			}
+			
+			private function set_data():void {
+				spot.name = spot_name.text;
+				spot.id = unique_id.text;
+				spot.unique_id = unique_id.text;
+				spot.address = address.text;
+				spot.service_port = service_port.text;
+				spot.device_name = device_name.text;
+				spot.audio_port = audio_port.text;
+				spot.vendor = vendor.text;
+				spot.device_type = device_type.text;
+				spot.ptz_protocal = ptz_protocal.text;
+				spot.io_addr = io_addr.text;
+				spot.driver = driver.text; 
+			}
+			
+			private function showError(event:FaultEvent):void {
+				utils.Alert.show("服务器忙，请稍后重试","错误");
+				submit.enabled = true;
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="spotRequest" 
+		useProxy="false" method="POST" showBusyCursor="true" resultFormat="text" result="refresh(event)" 
+		fault="showError(event)"/>
+    
+    <mx:Array id="validators">
+		<u:UniqueValidator source="{spot_name}" selfObj="{spot}" required="true" property="text" list="{spots}" field="name" errorMessage="监控点名称已被使用" requiredFieldError="请填写监控点名称"/>
+		<u:UniqueValidator source="{unique_id}" selfObj="{spot}" required="true" property="text" list="{spots}" field="unique_id" errorMessage="标识已被使用" requiredFieldError="请填写标识"/>
+		<u:UniqueIPValidator source="{address}" selfObj="{spot}" required="true" property="text" list="{spots}" field="address" errorMessage="设备地址已被使用" requiredFieldError="请填写设备地址"/>
+		<mx:NumberValidator required="true" source="{service_port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="请填写服务端口" 
+			lowerThanMinError="端口范围应该在0-65535之间" 
+			exceedsMaxError="端口范围应该在0-65535之间" 
+			negativeError="端口范围应该在0-65535之间" 
+			integerError="服务端口应该为数字"  
+			invalidCharError="服务端口应该为数字"/>
+		<mx:NumberValidator required="true" source="{audio_port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="请填写音频端口" 
+			lowerThanMinError="端口范围应该在0-65535之间" 
+			exceedsMaxError="端口范围应该在0-65535之间" 
+			negativeError="端口范围应该在0-65535之间" 
+			integerError="音频端口应该为数字"  
+			invalidCharError="音频端口应该为数字"/>	
+		<mx:NumberValidator required="true" source="{io_addr}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="255" 
+			requiredFieldError="请填写IO地址" 
+			lowerThanMinError="IO地址范围应该在0-255之间" 
+			exceedsMaxError="IO地址范围应该在0-255之间" 
+			negativeError="IO地址范围应该在0-255之间" 
+			integerError="IO地址应该为数字"  
+			invalidCharError="IO地址应该为数字"/>
+		<mx:Validator source="{device_name}" property="text" required="true" requiredFieldError="请填写设备名称"/>
+		<mx:Validator source="{device_type}" property="text" required="true" requiredFieldError="请填写设备类型"/>
+		<mx:Validator source="{ptz_protocal}" property="text" required="true" requiredFieldError="请填写云台协议"/>
+		<mx:Validator source="{driver}" property="text" required="true" requiredFieldError="请填写驱动程序"/>	
+	</mx:Array>
+	
+	<mx:Form defaultButton="{submit}" x="0" y="0" width="100%" height="100%">
+		<mx:FormItem label="名称" required="true">
+			<mx:TextInput id="spot_name" text="{spot.name}" />
+		</mx:FormItem>
+		<mx:FormItem label="标识" required="true">
+			<mx:TextInput id="unique_id" text="{spot.unique_id}"/>
+		</mx:FormItem>
+		<mx:FormItem label="设备地址" required="true">
+			<mx:TextInput id="address" text="{spot.address}"/>
+		</mx:FormItem>
+		<mx:FormItem label="服务端口" required="true">
+			<mx:TextInput id="service_port" text="{spot.service_port}"/>
+		</mx:FormItem>
+		<mx:FormItem label="设备名称" required="true">
+			<mx:TextInput id="device_name" text="{spot.device_name}"/>
+		</mx:FormItem>
+		<mx:FormItem label="音频端口" required="true">
+			<mx:TextInput id="audio_port" text="{spot.audio_port}"/>
+		</mx:FormItem>
+		<mx:FormItem label="生产厂家">
+			<mx:TextInput id="vendor" text="{spot.vendor}"/>
+		</mx:FormItem>
+		<mx:FormItem label="设备类型" required="true">
+			<mx:TextInput id="device_type" text="{spot.device_type}"/>
+		</mx:FormItem>
+		<mx:FormItem label="云台协议" required="true">
+			<mx:TextInput id="ptz_protocal" text="{spot.ptz_protocal}"/>
+		</mx:FormItem>
+		<mx:FormItem label="IO地址" required="true">
+			<mx:TextInput id="io_addr" text="{spot.io_addr}"/>
+		</mx:FormItem>
+		<mx:FormItem label="驱动程序" required="true">
+			<mx:TextInput id="driver" text="{spot.driver}"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:TextInput id="spot_seq" text="{spot.seq}" visible="false"/>
+	<mx:ControlBar>
+		<mx:Button label="保存" click="submit_data()" id="submit"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+	
+</v:TitleWin>

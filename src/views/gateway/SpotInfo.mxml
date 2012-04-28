@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Panel xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="100%" height="100%" disabledOverlayAlpha="0" 
+	xmlns:v="views.*" enabled="false"
+	xmlns:u="utils.*" creationComplete="init()">
+	
+	<mx:Metadata>
+		[Event(name="cancelEdit")]
+		[Event(name="Added", type="events.SpotEvent")]	
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.validators.ValidationResult;
+			import mx.controls.Alert;
+			import utils.Utils;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			import utils.FormValidator;
+			import mx.utils.StringUtil;
+			import mx.events.ValidationResultEvent;
+			import events.SpotEvent;
+			
+			[Bindable]
+			private var spot:XML;
+			
+			[Bindable]
+			public var com_id:String;
+			
+			[Bindable]
+			private var encoder:XML;
+			
+			[Bindable]
+			public var spots:XMLList;
+		
+			//[Bindable]
+			//private var ports:XMLList;
+			
+			//[Bindable]
+			//private var channels:XMLList;
+			
+			private var formValidator:FormValidator=new FormValidator();
+			private var params:URLVariables = new URLVariables;
+			
+			private function init():void{
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				controlbar.visible = Utils.getRole() != "mo";
+				controlbar.includeInLayout = controlbar.visible;
+				this.enabled = controlbar.visible;
+			}	
+			
+			public function set_spot(encoder:XML, spot:XML):void {	
+				this.encoder = encoder;
+				com_id = StringUtil.trim((encoder.parent() as XML).@id);
+				
+				this.spot = spot;
+				if(spot) {
+					spotInfRPC.url = Utils.get_url("/spots/get_inf/" + spot.@id);
+					spotInfRPC.send();
+				}
+			}
+			
+			public function set_spot1(encoder:XML, spot:XML):void {
+				this.spot = spot;
+				this.encoder = encoder;
+				
+				var spotsNode:XML = <Spots/>;
+				var portsNode:XML = <Ports/>
+				for each(var encoder:XML in this.encoder.parent().Encoder) {
+					for each(var s:XML in encoder.Spot) {
+						if(!spot || s.@id != spot.@id) {
+							var spotNode:XML = <Spot/>;
+							spotNode.@id = s.@id;
+							spotNode.@name = s.@name;
+							spotNode.@alias = s.@alias;
+							spotsNode.appendChild(spotNode);
+											
+//							var vport:XML = <Port/>;
+//							vport.@id = s.@id;
+//							vport.@src_port = s.@v_src_port;
+//							var aport:XML = <Port/>;
+//							aport.@id = s.@id;
+//							aport.@src_port = s.@a_src_port;
+//							portsNode.appendChild(vport);
+//							portsNode.appendChild(aport);
+						}
+					}
+				}
+				spots = spotsNode.Spot;
+				//ports = portsNode.Port;
+				
+//				var channelNode:XML = <Channels/>;
+//				for each(var s:XML in this.encoder.Spot) {
+//					if(spot == null || s.@id != spot.@id) {
+//						var vc:XML = <Channel/>;
+//						vc.@id = s.@id;
+//						vc.@channel = s.@v_channel;
+//						var ac:XML = <Channel/>;
+//						ac.@id = s.@id;
+//						ac.@channel = s.@a_channel;
+//						channelNode.appendChild(vc);
+//						channelNode.appendChild(ac);
+//					}
+//				}
+//				channels = channelNode.Channel;
+			}
+			
+			private function save_failure():void {
+				Alert.show("网关未连接,不能保存       ","错误");
+			}
+			
+			private function set_data(event:ResultEvent):void {
+				var result:XML = XML(event.result);
+				if(result.localName().toString() == "Errors") {
+					var msg:String = "";
+					for each(var error:XML in result.Error) {
+						msg += error.@msg + "\r\n";
+					}
+					Alert.show(msg, "校验错误");
+					return;
+				}
+				if(spot) {
+					spot.@name = params['spot[name]'];
+					spot.@alias = params['spot[alias]'];
+					spot.@v_encode_type = params['spot[v_encode_type]'];
+					spot.@v_channel = params['spot[v_channel]'];
+					spot.@v_com_method = params['spot[v_com_method]'];
+					spot.@v_src_port = params['spot[v_src_port]'];
+					spot.@v_encode_rate = params['spot[v_encode_rate]'];
+					spot.@v_protocal_type = params['spot[v_protocal_type]'];
+					spot.@v_resolution = params['spot[v_resolution]'];
+					spot.@a_encode_type = params['spot[a_encode_type]'];
+					spot.@a_channel = params['spot[a_channel]'];
+					spot.@a_com_method = params['spot[a_com_method]'];
+					spot.@a_src_port = params['spot[a_src_port]'];
+					spot.@a_encode_rate = params['spot[a_encode_rate]'];
+					spot.@a_protocal_type = params['spot[a_protocal_type]'];						
+				} else {
+					spot = XML(event.result);
+					//Alert.show(encoder.toXMLString() + "\r\n" + spot.toXMLString());
+					encoder.appendChild(spot);
+					dispatchEvent(new SpotEvent("Added", spot));					
+				}
+				//this.parentApplication.get_spot_groups();
+				//this.parentApplication.get_spot_names();
+				submit.enabled = true;
+				glow.play();
+			}
+			
+			private function save():void {
+				spotRPC.url = Utils.get_url("/gateway/save_spot");
+				params['id'] = spot?spot.@id:"";
+        		params['encoder_id'] = encoder.@id;
+        		params['spot[id]'] = spot?spot.@id:"";
+        		params['seq'] = spot?spot.@seq:"";
+        		params['spot[name]'] = StringUtil.trim(spot_name.text);
+        		params['spot[alias]'] = StringUtil.trim(alias.text);
+        		params['spot[v_encode_type]'] = v_encode_type.selectedIndex;
+	        	params['spot[v_channel]'] = Number(v_channel.text);
+	        	params['spot[v_com_method]'] = v_com_method.selectedIndex;
+        		params['spot[v_src_port]'] = Number(v_src_port.text);
+        		params['spot[v_protocal_type]'] = v_protocal_type.selectedIndex;
+	        	params['spot[v_encode_rate]'] = Number(v_encode_rate.text);
+        		params['spot[v_resolution]'] = v_resolution.selectedIndex;
+        		params['spot[a_encode_type]'] = a_encode_type.selectedIndex;
+	        	params['spot[a_channel]'] = Number(a_channel.text);
+	        	params['spot[a_com_method]'] = a_com_method.selectedIndex;
+        		params['spot[a_src_port]'] = Number(a_src_port.text);
+        		params['spot[a_protocal_type]'] = a_protocal_type.selectedIndex;
+	        	params['spot[a_encode_rate]'] = Number(a_encode_rate.text);
+	        	if(com_id && com_id != "") {
+	        		params['spot[company_id]'] = com_id;	
+	        	}
+				spotRPC.send(params);
+				submit.enabled = false;
+			}
+			
+			private function set_inf(event:ResultEvent):void {
+				this.spot = XML(event.result);
+				this.enabled = controlbar.visible;
+			}
+			
+			private function failure():void {
+				
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="spotRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" resultFormat="xml" result="set_data(event)"/>
+	<mx:HTTPService id="spotInfRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" resultFormat="xml" result="set_inf(event)" fault="failure()"/>	
+    
+    <mx:Glow id="glow" target="{this}" repeatCount="2" effectEnd="utils.Alert.show('保存成功')"/>
+	
+	<mx:Array id="validators">
+		<u:UniqueValidatorXML id="c_name" source="{spot_name}" required="true" property="text" 
+			list="{spots}" field="@name" errorMessage="监控点名称已被使用" requiredFieldError="请填写监控点名称"/>
+		<u:UniqueValidatorXML id="c_alias" source="{alias}" selfObj="{spot}" required="false" property="text" 
+			list="{spots}" field="@alias" errorMessage="别名已被使用"/>	
+		<!--
+		<u:UniqueNumberValidatorXML list="{channels}" field="@channel"
+			required="true" source="{v_channel}" property="text" compareValue="{a_channel.text}"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="32768"
+			errorMessage="通道已被使用"
+			exceedsMaxError="通道范围应该在0-32768之间"
+			requiredFieldError="请填写视频通道号" 
+			negativeError="通道范围应该在0-32768之间" 
+			integerError="视频通道应该为数字"  
+			invalidCharError="视频通道应该为数字"/>
+		<u:UniqueNumberValidatorXML list="{channels}" field="@channel" 
+			required="true" source="{a_channel}" property="text" compareValue="{v_channel.text}"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="32768"
+			errorMessage="通道已被使用"
+			exceedsMaxError="通道范围应该在0-32768之间"
+			requiredFieldError="请填写音频通道号" 
+			negativeError="通道范围应该在0-32768之间" 
+			integerError="音频通道应该为数字"  
+			invalidCharError="音频通道应该为数字"/>
+		<u:UniqueNumberValidatorXML id="vsp" list="{ports}" field="@src_port" 
+			required="true" source="{v_src_port}" property="text" compareValue="{a_src_port.text}"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="65535"
+			errorMessage="端口已被使用"
+			exceedsMaxError="视频源端口应该在0-65535之间"
+			requiredFieldError="请填写视频源端口" 
+			negativeError="视频源端口应该在0-65535之间" 
+			integerError="视频源端口应该在0-65535之间"  
+			invalidCharError="视频源端口应该在0-65535之间"/>
+		<u:UniqueNumberValidatorXML id="asp" list="{ports}" field="@src_port" 
+			required="true" source="{a_src_port}" property="text" compareValue="{v_src_port.text}"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="65535"
+			errorMessage="端口已被使用"
+			exceedsMaxError="音频源端口应该在0-65535之间"
+			requiredFieldError="请填写音频源端口" 
+			negativeError="音频源端口应该在0-65535之间" 
+			integerError="音频源端口应该在0-65535之间"  
+			invalidCharError="音频源端口应该在0-65535之间"/>
+		-->
+		<mx:NumberValidator
+			required="true" source="{v_channel}" property="text"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="32768"
+			exceedsMaxError="通道范围应该在0-32768之间"
+			requiredFieldError="请填写视频通道号" 
+			negativeError="通道范围应该在0-32768之间" 
+			integerError="视频通道应该为数字"  
+			invalidCharError="视频通道应该为数字"/>
+		<mx:NumberValidator 
+			required="true" source="{a_channel}" property="text"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="32768"
+			exceedsMaxError="通道范围应该在0-32768之间"
+			requiredFieldError="请填写音频通道号" 
+			negativeError="通道范围应该在0-32768之间" 
+			integerError="音频通道应该为数字"  
+			invalidCharError="音频通道应该为数字"/>
+		<mx:NumberValidator 
+			required="true" source="{v_src_port}" property="text"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="65535"
+			exceedsMaxError="视频源端口应该在0-65535之间"
+			requiredFieldError="请填写视频源端口" 
+			negativeError="视频源端口应该在0-65535之间" 
+			integerError="视频源端口应该在0-65535之间"  
+			invalidCharError="视频源端口应该在0-65535之间"/>
+		<mx:NumberValidator 
+			required="true" source="{a_src_port}" property="text"
+			allowNegative="false" 
+			minValue="0"  
+			maxValue="65535"
+			exceedsMaxError="音频源端口应该在0-65535之间"
+			requiredFieldError="请填写音频源端口" 
+			negativeError="音频源端口应该在0-65535之间" 
+			integerError="音频源端口应该在0-65535之间"  
+			invalidCharError="音频源端口应该在0-65535之间"/>
+		<mx:NumberValidator required="true" source="{v_encode_rate}" property="text"
+			allowNegative="false" 
+			minValue="0"  
+			requiredFieldError="请填写码率" 
+			negativeError="码率应该大于0" 
+			integerError="码率应该为数字"  
+			invalidCharError="码率应该为数字"/>
+		<mx:NumberValidator required="true" source="{a_encode_rate}" property="text"
+			allowNegative="false" 
+			minValue="0"  
+			requiredFieldError="请填写码率" 
+			negativeError="码率应该大于0" 
+			integerError="码率应该为数字"  
+			invalidCharError="码率应该为数字"/>			
+	</mx:Array>
+	<mx:VBox width="100%" height="100%" verticalGap="30">
+		<mx:Form defaultButton="{submit}">
+			<mx:FormItem label="监控点名" required="true">
+				<mx:TextInput id="spot_name" text="{spot.@name}" />
+			</mx:FormItem>
+			<mx:FormItem label="别名">
+				<mx:TextInput id="alias" text="{spot.@alias}" />
+			</mx:FormItem>
+		</mx:Form>
+		<mx:Canvas width="100%" styleName="menu" borderSides="">
+			<mx:Form y="25">	
+				<mx:FormItem label="编码类型" required="true">
+					<mx:ComboBox id="v_encode_type" dataProvider="{Gateway.DICTIONARY.EncodeTypes.Item}" 
+						labelField="@name" selectedIndex="{Number(spot.@v_encode_type)}" />
+				</mx:FormItem>
+				<mx:FormItem label="通道号" required="true" visible="false" includeInLayout="false">
+					<mx:TextInput id="v_channel" text="1"/>
+				</mx:FormItem>
+				<mx:FormItem label="通讯模式" required="true" visible="false" includeInLayout="false">
+					<mx:ComboBox id="v_com_method" dataProvider="{Gateway.DICTIONARY.Communications.Item}" 
+						labelField="@name" selectedIndex="0"/>
+				</mx:FormItem>
+				<mx:FormItem label="源端口" required="true">
+					<mx:TextInput id="v_src_port" text="{spot.@v_src_port}"/>
+				</mx:FormItem>
+				<mx:FormItem label="协议类型" required="true" visible="false" includeInLayout="false">
+					<mx:ComboBox id="v_protocal_type" dataProvider="{Gateway.DICTIONARY.ProtocalTypes.Item}" 
+						labelField="@name" selectedIndex="0"/>
+				</mx:FormItem>
+				<mx:FormItem label="码率" required="true" visible="false" includeInLayout="false">
+					<mx:TextInput id="v_encode_rate" text="500" />
+				</mx:FormItem>
+				<mx:FormItem label="分辨率" required="true" visible="false" includeInLayout="false">
+					<mx:ComboBox id="v_resolution" dataProvider="{Gateway.DICTIONARY.Resolutions.Item}" 
+						labelField="@name" selectedIndex="0"/>
+				</mx:FormItem>
+			</mx:Form>
+			<v:StyleTitle text="视频流" bg="#323232"/>
+		</mx:Canvas>
+		<mx:Canvas width="100%" styleName="menu" borderSides="">
+			<mx:Form y="25">	
+				<mx:FormItem label="编码类型" required="true">
+					<mx:ComboBox id="a_encode_type" dataProvider="{Gateway.DICTIONARY.EncodeTypes.Item}" 
+						labelField="@name" selectedIndex="{Number(spot.@a_encode_type)}" />
+				</mx:FormItem>
+				<mx:FormItem label="通道号" required="true" visible="false" includeInLayout="false">
+					<mx:TextInput id="a_channel" text="1" />
+				</mx:FormItem>
+				<mx:FormItem label="通讯模式" required="true" visible="false" includeInLayout="false">
+					<mx:ComboBox id="a_com_method" dataProvider="{Gateway.DICTIONARY.Communications.Item}" 
+						labelField="@name" selectedIndex="0"/>
+				</mx:FormItem>
+				<mx:FormItem label="源端口" required="true">
+					<mx:TextInput id="a_src_port" text="{spot.@a_src_port}"/>
+				</mx:FormItem>
+				<mx:FormItem label="协议类型" required="true" visible="false" includeInLayout="false">
+					<mx:ComboBox id="a_protocal_type" dataProvider="{Gateway.DICTIONARY.ProtocalTypes.Item}" 
+						labelField="@name" selectedIndex="0"/>
+				</mx:FormItem>
+				<mx:FormItem label="码率" required="true" visible="false" includeInLayout="false">
+					<mx:TextInput id="a_encode_rate" text="48" />
+				</mx:FormItem>
+			</mx:Form>
+			<v:StyleTitle text="音频流" bg="#323232"/>
+		</mx:Canvas>
+	</mx:VBox>
+	<mx:ControlBar id="controlbar">
+		<mx:Button label="保存" id="submit" click="save()"/>
+		<mx:Button id="cancel" label="取消" click="dispatchEvent(new Event('cancelEdit'))"/>
+	</mx:ControlBar>
+	
+</mx:Panel>

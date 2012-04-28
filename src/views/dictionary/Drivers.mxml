@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%"
+	xmlns:driver="views.drivers.*" styleName="menu" borderSides="left right bottom"
+	xmlns:view="views.*" creationComplete="init()">
+	
+	<mx:Metadata>
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.DataGridEvent;
+			import mx.controls.Alert;
+			import events.PopupEvent;
+			import views.gateway.Gateway;
+			import utils.Utils;
+			import mx.utils.StringUtil;
+			import mx.controls.TextInput;
+				
+//			[Bindable]
+//			public var gFilter:GlowFilter = Utils.neonFilter();
+			
+			private function init():void {
+			}		
+			
+			private function save(event:DataGridEvent):void {
+				var node:XML = list.selectedItem as XML;
+				var oldValue:String = node.child(event.dataField)[0];
+				var newValue:String = StringUtil.trim(TextInput(list.itemEditorInstance).text);
+				if(oldValue != newValue) {
+					driverUpdateRPC.url = Utils.get_url("/dictionary/driver_update");
+					var params:URLVariables = new URLVariables;
+					params["id"] = node.@id;
+					params["field"] = event.dataField;
+					params["value"] = newValue;
+					driverUpdateRPC.send(params);
+				}
+			}	
+			
+			private function new_driver(event:MouseEvent):void {
+				var d:DriverInf = new DriverInf;
+				dispatchEvent(new PopupEvent(PopupEvent.POPUP, event, d));
+			}
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="driverUpdateRPC" method="POST" showBusyCursor="true" useProxy="false"/>
+	<mx:VBox width="100%" height="100%" x="0" y="30">
+		<mx:DataGrid id="list" width="100%" height="100%" 
+			dataProvider="{Gateway.DICTIONARY.Devices.Device}" editable="true" itemEditEnd="save(event)">
+			<mx:columns>
+				<mx:DataGridColumn headerText="序号" dataField="@id" width="40" resizable="false"/>
+				<mx:DataGridColumn headerText="设备名称" dataField="name" width="160"/>
+				<mx:DataGridColumn headerText="厂家" dataField="vendor" width="160"/>
+				<mx:DataGridColumn headerText="设备类型" dataField="type" width="120"/>
+				<mx:DataGridColumn headerText="驱动程序" dataField="driver" width="120"/>
+				<mx:DataGridColumn headerText="GUID" dataField="GUID"/>
+			</mx:columns>
+		</mx:DataGrid>
+		<mx:HBox width="100%" paddingLeft="5" paddingBottom="5" paddingTop="5">
+			<mx:Button label="添加驱动" click="new_driver(event)"/>
+		</mx:HBox>
+	</mx:VBox>
+	<view:StyleTitle text="设备驱动管理"/>
+</mx:Canvas>

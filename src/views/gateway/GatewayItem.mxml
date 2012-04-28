@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:VBox xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" enabled="true" disabledOverlayAlpha="0" 
+	width="100%" creationComplete="init()" verticalGap="-1">
+	<mx:Metadata>
+		[Event(name="Popup",type="events.PopupEvent")]	
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.CloseEvent;
+			import mx.rpc.events.ResultEvent;
+			import events.PopupEvent;
+			import utils.Utils;
+			import mx.managers.PopUpManager;
+			import mx.core.Application;
+			import mx.core.DragSource;
+			import mx.managers.DragManager;
+			import utils.Alert;
+			import mx.collections.ArrayCollection;
+		
+			[Bindable]
+			public var gateway:Object;
+			
+			[Bindable]
+			public var gateways:ArrayCollection = new ArrayCollection;
+			
+			[Bindable]
+			public var w:Number;
+			[Bindable]
+			public var h:Number;
+			
+			public var isSelected:Boolean = false;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			private var oldEnabled:Boolean;
+			
+			public var timer:Timer = new Timer(10000); 
+			
+			public function toggle_apply(enabled:Boolean):void {
+				bApply.enabled = enabled;
+			}
+			
+			private function init():void {
+				b.visible = Utils.getRole() == "su";
+				bReboot.visible = b.visible;
+				bApply.visible = Utils.getRole() != 'mo';
+				
+				//spacer.height = 20;
+				h = inf.height;
+				b.x = width - b.width - bReboot.width - bApply.width + 3;
+				bReboot.x = width - bReboot.width - bApply.width + 2;
+				bApply.x = width - bApply.width + 1;
+				menuItem.selected(isSelected);
+				inf.visible = isSelected;
+				inf.includeInLayout = isSelected;
+				timer.addEventListener(TimerEvent.TIMER, ping);
+				ping(null);
+				timer.start();	
+			}
+			
+			private function ping(event:TimerEvent):void {
+				var params:URLVariables = new URLVariables;
+				params.address = gateway.address;
+				params.port = gateway.port;
+				testRPC.url = Utils.get_url("/gateway/ping");
+				testRPC.send(params);
+				timer.stop();	
+			}
+			
+			private function showInf():void {
+				inf.visible = true;
+				inf.includeInLayout = true;
+			} 
+			
+			public function selected(s:Boolean):void {
+				menuItem.selected(s);
+				inf.visible = s;
+				inf.includeInLayout = s;
+			}
+			
+			private var gwInfScreen:GatewayInfo;
+			private function showGwInfo(event:MouseEvent):void {
+				gwInfScreen = new GatewayInfo();
+				gwInfScreen.gw = gateway;
+				gwInfScreen.gateways = gateways;
+				gwInfScreen.callBack = set_gateway;
+				this.dispatchEvent(new PopupEvent("Popup", event, gwInfScreen));
+			}
+			
+			private function set_gateway(gw:Object):void {
+				gateway = gw;
+				for each(var g:Object in gateways) {
+					if(g.id == gw.id) {
+						g = gw;
+						return;
+					}
+				}
+			}
+			
+			private function MouseMove(event:MouseEvent):void {
+				var ds:DragSource = new DragSource
+	            ds.addData(gateway,"gateway");
+
+	            var canvasProxy:GatewayItem = new GatewayItem;
+	            canvasProxy.gateway = gateway;
+	            canvasProxy.width = width;
+	            DragManager.doDrag(this, ds, event, canvasProxy);
+			}
+			
+			private function enable(event:ResultEvent):void {
+				var result:String = event.result.toString();
+				if(result == "1") {
+					menuItem.enable(true);
+					b.enabled = true;
+					bReboot.enabled = true;
+					//bApply.enabled = oldEnabled;
+					timer.start();	
+				} else {
+					disable();
+				}
+			}
+			
+			private function disable():void {;
+				menuItem.enable(false);
+				b.enabled = false;
+				bReboot.enabled = false;
+				//oldEnaled = bApply.enabled;
+				//bApply.enabled = false;
+				timer.start();	
+			}
+			
+			private function reboot(event:MouseEvent):void {
+				Alert.show("确定重启该网关?       ", "重启确认", mx.controls.Alert.YES|mx.controls.Alert.NO, this, do_reboot, null, mx.controls.Alert.NO);	
+			}
+			
+			private function apply_setting(event:MouseEvent):void {
+				Alert.show("确定应用新设置?       ", "应用新设置", mx.controls.Alert.YES|mx.controls.Alert.NO, this, do_apply, null, mx.controls.Alert.NO);	
+			}
+			
+			private function do_reboot(event:CloseEvent):void {
+				if(event.detail == mx.controls.Alert.YES) {
+					var params:URLVariables = new URLVariables;
+					params.address = gateway.address;
+					params.port = gateway.port;
+					rebootRPC.url = Utils.get_url("/gateway/reboot");
+					rebootRPC.send(params);	
+				}	
+			}
+			
+			private function do_apply(event:CloseEvent):void {
+				if(event.detail == mx.controls.Alert.YES) {
+					var params:URLVariables = new URLVariables;
+					params.address = gateway.address;
+					params.port = gateway.port;
+					rebootRPC.url = Utils.get_url("/gateway/apply_setting");
+					rebootRPC.send(params);	
+				}	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="testRPC" result="enable(event)" fault="disable()" requestTimeout="10"/>
+	<mx:HTTPService id="rebootRPC" requestTimeout="5"/>	
+	
+	<mx:Resize id="resize" heightFrom="0" heightTo="{h}" duration="200"/> 
+	<mx:Resize id="fold" heightFrom="{h}" heightTo="0" duration="200"/>
+	<mx:Fade id="fadeIn" alphaFrom="0" alphaTo="1"/>
+	<mx:Fade id="fadeOut" alphaFrom="1" alphaTo="0"/>
+	
+	<ImageMenuItem id="menuItem" width="100%" text="{gateway.name} [{gateway.address}]" click="showInf()" mouseMove="MouseMove(event)"/>
+	<mx:Canvas id="inf" width="100%" styleName="menu" visible="false"
+		includeInLayout="false" showEffect="{resize}" hideEffect="{fold}" 
+		verticalScrollPolicy="off" horizontalScrollPolicy="off">
+		<Button text="修改" width="60" y="-2" id="b" click="showGwInfo(event)"/>
+		<Button text="重启" width="60" y="-2" id="bReboot" click="reboot(event)"/>
+		<Button text="应用新设置" width="100" y="-2" id="bApply" click="apply_setting(event)" enabled="{Gateways.apply_enabled}"/>
+		<mx:VBox x="0" y="0" verticalGap="0" width="100%">
+			<mx:Canvas id="spacer" height="20" width="100%"/>
+			<mx:Form x="0" y="0" width="100%">
+				<mx:FormItem label="网关名称:">
+					<mx:Text text="{gateway.name}"/>
+				</mx:FormItem>
+				<mx:FormItem label="外网地址:">
+					<mx:Text text="{gateway.address}"/>
+				</mx:FormItem>
+				<mx:FormItem label="内网地址:">
+					<mx:Text text="{gateway.l_address}"/>
+				</mx:FormItem>
+				<mx:FormItem label="编码器数量:">
+					<mx:Text text="{gateway.encoders}"/>
+				</mx:FormItem>
+				<mx:FormItem label="监控点容量:">
+					<mx:Text text="{gateway.capacity}"/>
+				</mx:FormItem>
+				<mx:FormItem label="当前监控点数:">
+					<mx:Text text="{gateway.spots}"/>
+				</mx:FormItem>
+				<mx:FormItem label="最大并发数量:">
+					<mx:Text text="{gateway.concurrency}"/>
+				</mx:FormItem>				
+			</mx:Form>
+		</mx:VBox>
+	</mx:Canvas>
+</mx:VBox>

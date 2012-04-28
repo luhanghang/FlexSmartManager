@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml"
+	 width="100%" height="100%" 
+	 xmlns:user="views.user.*" 
+	 xmlns:views="views.*"
+	 disabledOverlayAlpha="0">
+	 <mx:Metadata>
+		[Event(name="Freeze")]
+		[Event(name="UnFreeze")]
+		[Event(name="Popup", type="events.PopupEvent")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import views.gateway.Gateways;
+			import views.gateway.CompanyGWInfo;
+			import mx.events.CloseEvent;
+			import events.PopupEvent;
+			import mx.core.UITextField;
+			import mx.events.DragEvent;
+			import events.UserEvent;
+			import mx.controls.Alert;
+			import mx.events.ItemClickEvent;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			import mx.collections.ArrayCollection;
+			import mx.utils.ObjectProxy;
+			import mx.managers.PopUpManager;
+			import mx.managers.DragManager;
+			import mx.core.UIComponent;
+			import mx.controls.listClasses.ListBase;
+			import mx.core.DragSource;
+			import mx.controls.DataGrid;
+			import mx.controls.tabBarClasses.Tab;
+			import utils.Icons;
+			
+			[Bindable]
+			public var companies:XML;
+			
+			private var gws:XML;
+			
+			public function init():void {
+				controlbar.visible = Utils.getRole() != "mo";
+				a_controlbar.visible = controlbar.visible;
+				g_controlbar.visible = controlbar.visible;
+				//panel.enabled = controlbar.visible;
+				comRPC.url = Utils.get_url("/companies");
+				comRPC.send();	
+			}
+			
+			public function on_exit():void {
+				this.visible = false;
+				admins.visible = false;
+				gateways.visible = false;
+			}
+			
+			private function set_companies(event:ResultEvent):void {				
+				companies = XML(event.result);
+				this.visible = true;
+				if(Gateways.gw_array.length == 0) {
+					gwRPC.url = Utils.get_url("/gateway/all");
+					gwRPC.send();	
+				}
+			}
+			
+			private function set_gateways(event:ResultEvent):void {
+				if(!event.result.gateways) return;
+				Gateways.gw_array = new ArrayCollection();
+				if(event.result.gateways.gateway is ObjectProxy) {
+					Gateways.gw_array.addItem(event.result.gateways.gateway);
+				} else {
+					Gateways.gw_array = event.result.gateways.gateway;
+				}
+			}
+
+			private function set_icon(item:Object):* {
+				return Icons.HOME;		
+			}
+			
+			private function new_company(event:MouseEvent):void {
+				var cInfScreen:CompanyInfo = new CompanyInfo;
+				cInfScreen.companies = companies.Company;
+				cInfScreen.callBack = add_company;
+				this.dispatchEvent(new PopupEvent("Popup", event, cInfScreen));	
+			}
+			
+			private function modify_company(event:MouseEvent):void {
+				var cInfScreen:CompanyInfo = new CompanyInfo;
+				cInfScreen.company = comTree.selectedItem as XML;
+				cInfScreen.com_id = cInfScreen.company.@id;
+				cInfScreen.companies = companies.Company;
+				cInfScreen.callBack = update_company;
+				this.dispatchEvent(new PopupEvent("Popup", event, cInfScreen));	
+			}
+			
+			private function add_company(company:XML):void {
+				companies.appendChild(company);
+			}
+			
+			private function update_company(company:XML):void {
+				var com:XML = comTree.selectedItem as XML;
+				com = company;	
+			}
+			
+			private var oldNode:XML;
+			private function enable_modify():void {
+				var com:XML = comTree.selectedItem as XML;
+				if(com == oldNode) return;
+				oldNode = com;
+				admins.visible = false;
+				gateways.visible = false;
+				bModifyCompany.enabled = comTree.selectedIndex >= 0;
+				fadePanel.play(null, bModifyCompany.enabled); 
+				if(bModifyCompany.enabled) {
+					comUsersRPC.url = Utils.get_url("/companies/admins/" + com.@id);
+					comUsersRPC.send();
+				}
+			}
+			
+			private function remove_company(event:CloseEvent):void {
+				if (event.detail == Alert.YES) {
+					var com:XML = comTree.selectedItem as XML;
+					comRemoveRPC.url = utils.Utils.get_url("/companies/remove/" + com.@id);
+					comRemoveRPC.send();
+					var children:XMLList = companies.Company;
+					for(var i:int = 0 ; i < children.length(); i++) {
+	                    if( children[i].@id == com.@id ) {
+	                        delete children[i];
+	                        break;
+	                    }
+	                }	
+	                enable_modify();
+				}
+			}
+			
+			private function new_admin(event:MouseEvent):void {
+				var infScreen:AdminInfo = new AdminInfo;
+				var com:XML = comTree.selectedItem as XML;
+				infScreen.com_id = com.@id;
+				infScreen.callBack = add_admin;
+				this.dispatchEvent(new PopupEvent("Popup", event, infScreen));		
+			}
+			
+			private function add_admin(user:XML):void {
+				var ap:AdminInfoPanel = new AdminInfoPanel;
+				ap.user = user;
+				ap.addEventListener("Popup",modify_admin);
+				admins.addChild(ap);
+				bAddAdmin.visible = false;	
+			}
+			
+			private function set_com_admins(event:ResultEvent):void {
+				var _admins:XML = XML(event.result);
+				admins.removeAllChildren();
+				for each(var admin:XML in _admins.Account) {
+					add_admin(admin);
+				}	
+				
+				bAddAdmin.visible = _admins.Account.length() == 0;
+				admins.visible = true;
+				get_gateways();
+			}
+			
+			private function get_gateways():void {
+				var com:XML = comTree.selectedItem as XML;
+				comGwRPC.url = Utils.get_url("/companies/gateways/" + com.@id);
+				comGwRPC.send();	
+			}
+			
+			private function set_com_gateways(event:ResultEvent):void {
+				gws = XML(event.result);
+				gateways.removeAllChildren();
+				for each(var gateway:XML in gws.Gateway) {
+					add_gateway(gateway, false);
+				}
+				toggle_bAddGw();
+				gateways.visible = true;	
+			}
+			
+			private function add_gateway(gateway:XML, isNew:Boolean = true):void {
+				var com:XML = comTree.selectedItem as XML;
+				var gp:GatewayPanel = new GatewayPanel;
+				gp.gateway = gateway;
+				gp.company = com.@id;
+				gp.addEventListener("Popup",modify_gateway);
+				gateways.addChild(gp);
+				if(isNew) {
+					gws.appendChild(gateway);
+				}
+				toggle_bAddGw();	
+			}
+			
+			private function toggle_bAddGw():void {
+				bAddGw.visible = gws.Gateway.length() < Gateways.gw_array.length;
+			}
+			
+			private function modify_admin(event:PopupEvent):void {
+				this.dispatchEvent(new PopupEvent("Popup", event.mouseEvent, event.win));	
+			}
+			
+			private function modify_gateway(event:PopupEvent):void {
+				this.dispatchEvent(new PopupEvent("Popup", event.mouseEvent, event.win));	
+			}
+			
+			private function remove_admin(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					var user:XML = userTrash.src.user as XML;
+					userRemoveRPC.url = Utils.get_url("/users/remove/" + user.@id);
+					userRemoveRPC.send();		
+				}
+			}
+			
+			private function delete_admin(event:ResultEvent):void {
+				var aips:Array = admins.getChildren();
+				var id:String = event.result.toString();
+				for each(var ob:DisplayObject in aips) {
+					var aip:AdminInfoPanel = ob as AdminInfoPanel;
+					if(id == aip.user.@id) {
+						admins.removeChild(ob);
+						bAddAdmin.visible = true;
+						return;
+					}
+				}
+			}
+			
+			private function remove_gateway(event:CloseEvent):void {
+				if(event.detail == Alert.YES) {
+					var com:XML = comTree.selectedItem as XML;
+					var gw:XML = gTrash.src.gateway as XML;
+					gwRemoveRPC.url = Utils.get_url("/companies/remove_gateway/" + com.@id + "?gateway_id=" + gw.@id);
+					gwRemoveRPC.send();		
+				}
+			}
+			
+			private function delete_gateway(event:ResultEvent):void {
+				var gps:Array = gateways.getChildren();
+				var id:String = event.result.toString();
+				for each(var ob:DisplayObject in gps) {
+					var gp:GatewayPanel = ob as GatewayPanel;
+					if(id == gp.gateway.@id) {
+						gateways.removeChild(ob);
+						break;
+					}
+				}
+				var children:XMLList = gws.Gateway;
+				for(var i:int = 0; i < children.length(); i++) {
+					if(children[i].@id == id) {
+						delete children[i];
+						break;
+					}
+				}
+				toggle_bAddGw();
+			}
+			
+			private function new_gateway(event:MouseEvent):void {
+				var infScreen:CompanyGWInfo = new CompanyGWInfo;
+				var com:XML = comTree.selectedItem as XML;
+				infScreen.com_id = com.@id;
+				infScreen.gwUsed = gws;
+				infScreen.callBack = add_gateway;
+				this.dispatchEvent(new PopupEvent("Popup", event, infScreen));	
+			}
+		]]>
+	</mx:Script> 
+	
+	<mx:HTTPService id="comRPC" useProxy="false" showBusyCursor="true" resultFormat="xml" result="set_companies(event)"/>
+	<mx:HTTPService id="comUsersRPC" useProxy="false" showBusyCursor="true" resultFormat="xml" result="set_com_admins(event)"/>
+	<mx:HTTPService id="comGwRPC" useProxy="false" showBusyCursor="true" resultFormat="xml" result="set_com_gateways(event)"/>
+	<mx:HTTPService id="comRemoveRPC" useProxy="false" showBusyCursor="true"/>
+	<mx:HTTPService id="userRemoveRPC" useProxy="false" showBusyCursor="true" resultFormat="text" result="delete_admin(event)"/>
+	<mx:HTTPService id="gwRemoveRPC" useProxy="false" showBusyCursor="true" resultFormat="text" result="delete_gateway(event)"/>
+	<mx:HTTPService id="gwRPC" showBusyCursor="true" useProxy="false" result="set_gateways(event)"/>
+	
+	<mx:Fade alphaFrom="1" alphaTo="0" target="{panel}" id="fadePanel"/>
+	
+	<mx:Canvas x="0" y="0" styleName="menu" width="400" borderSides="left right bottom" height="100%">
+		<mx:VBox height="100%" y="25" width="100%">
+			<mx:Tree width="100%" height="100%" id="comTree" dataProvider="{companies.Company}" showRoot="false" itemRenderer="skins.TreeItemRender" 
+					iconFunction="set_icon" doubleClickEnabled="false" labelField="@name" click="enable_modify()"
+					dragEnabled="true" dragMoveEnabled="false" dropEnabled="false"
+		  			allowDragSelection="false" allowMultipleSelection="false"/>
+			<mx:HBox width="100%" verticalAlign="bottom" id="controlbar" 
+				paddingBottom="5" paddingTop="5" paddingLeft="5" paddingRight="5" horizontalAlign="right">
+				<mx:Button id="bNewCompany" label="添加" click="new_company(event)"/>
+				<mx:Button id="bModifyCompany" label="修改" click="modify_company(event)" enabled="false"/>
+				<mx:Spacer width="100%"/>
+				<views:Trash id="uTrash" toolTip="将组织机构拖放到此处删除" confirm="确定删除该机构吗?    " src="{comTree}" callBack="remove_company"/>	
+			</mx:HBox>
+		</mx:VBox>
+		<views:StyleTitle text="组织机构列表"/>
+	</mx:Canvas>
+	<mx:Canvas x="405" y="0" width="100%" height="100%" id="panel" alpha="0" disabledOverlayAlpha="0">
+		<mx:VDividedBox width="100%" height="100%">
+			<mx:Canvas width="100%" styleName="menu" borderSides="left right bottom" height="50%" horizontalScrollPolicy="off">
+				<mx:VBox width="100%" height="100%" y="25" horizontalScrollPolicy="off">
+					<mx:Tile id="admins" width="100%" height="100%" paddingLeft="15" paddingRight="15" paddingBottom="15" 
+						verticalGap="15" horizontalGap="15">
+							
+					</mx:Tile>
+					<mx:HBox width="100%" paddingBottom="5" paddingTop="5" paddingLeft="15" paddingRight="5" id="a_controlbar">
+						<mx:Button id="bAddAdmin" label="添加" click="new_admin(event)"/>
+						<mx:Spacer width="100%"/>
+						<views:Trash id="userTrash" toolTip="将管理员拖放到此处删除" confirm="确定删除该管理员吗?    " srcClass="{AdminInfoPanel}" callBack="remove_admin"/>
+					</mx:HBox>		
+				</mx:VBox>
+				<views:StyleTitle text="管理员"/>	
+			</mx:Canvas>
+			<mx:Canvas width="100%" styleName="menu" borderSides="left right bottom" height="50%">
+				<mx:VBox width="100%" height="100%" y="25" horizontalScrollPolicy="off">
+					<mx:Tile id="gateways" width="100%" height="100%" paddingLeft="15" paddingRight="15" paddingBottom="15" 
+						verticalGap="15" horizontalGap="15" >
+							
+					</mx:Tile>
+					<mx:HBox width="100%" paddingBottom="5" paddingTop="5" paddingLeft="15" paddingRight="5" id="g_controlbar">
+						<mx:Button id="bAddGw" label="添加" visible="false" click="new_gateway(event)"/>
+						<mx:Spacer width="100%"/>
+						<views:Trash id="gTrash" toolTip="将网关拖放到此处删除" confirm="确定删除该网关吗?    " srcClass="{GatewayPanel}" callBack="remove_gateway"/>
+					</mx:HBox>		
+				</mx:VBox>
+				<views:StyleTitle text="可访问多媒体网关列表" bg="#444444"/>		
+			</mx:Canvas>
+		</mx:VDividedBox>	
+	</mx:Canvas>
+</mx:Canvas>

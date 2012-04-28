@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:mx="http://www.adobe.com/2006/mxml" layout="absolute"  
+	showCloseButton="true"
+	verticalScrollPolicy="off" horizontalScrollPolicy="off" 
+	close="close()">
+	<mx:Metadata>
+		[Event(name="CloseWin")]
+	</mx:Metadata>
+	<mx:Script>
+		<![CDATA[
+			import mx.effects.Zoom;	
+			import mx.managers.PopUpManager;
+			import utils.FormValidator;
+			import utils.Utils;
+			import mx.core.Application;
+			
+			public var callBack:Function;
+			
+//			[Bindable]
+//			private var gFilter:GlowFilter = Utils.neonFilter();
+			
+			public var formValidator:FormValidator=new FormValidator();
+			
+			protected function close():void {
+				this.dispatchEvent(new Event("CloseWin"));
+			}
+		]]>
+	</mx:Script>	
+</mx:TitleWindow>

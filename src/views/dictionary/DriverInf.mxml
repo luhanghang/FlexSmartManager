@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="282" height="218" creationComplete="init()" title="设备驱动信息" xmlns:utils="utils.*">
+	<mx:Script>
+		<![CDATA[
+			import views.gateway.Gateway;
+			import utils.Utils;
+			
+			private var device:XML;	
+			private var devices:XML;		
+			
+			private function init():void {
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+			}	
+			
+			private function submit_data():void {
+				enabled = false;
+				devices = Gateway.DICTIONARY.Devices[0];
+				device = <Device/>;
+				device.@id = devices.Device.length() + 1;
+				device.name = device_name.text;
+				device.vendor = vendor.text;
+				device.type = type.text;
+				device.driver = driver.text;
+				device.GUID = guid.text;
+				driverRequest.url = Utils.get_url("/dictionary/driver_add");
+				var params:URLVariables = new URLVariables;
+				params.xml = device.toXMLString();
+				driverRequest.send(params);
+			}
+			
+			private function do_add():void {
+				devices.appendChild(device);
+				close();
+			}
+		]]>
+	</mx:Script>
+	<mx:HTTPService id="driverRequest" result="do_add()" 
+		useProxy="false" method="POST" showBusyCursor="true"/>
+		
+	<mx:Array id="validators">
+		<mx:Validator property="text" required="true" source="{device_name}" requiredFieldError="请填写设备名称"/>
+		<mx:Validator property="text" required="true" source="{type}" requiredFieldError="请填写设备类型"/>
+		<mx:Validator property="text" required="true" source="{driver}" requiredFieldError="请填写设备驱动"/>
+		<mx:Validator property="text" required="true" source="{guid}" requiredFieldError="请填写GUID"/>
+	</mx:Array>	
+		
+	<mx:Form x="0" y="0" width="100%" height="100%" defaultButton="{submit}">
+		<mx:FormItem label="设备名称" required="true">
+			<mx:TextInput id="device_name"/>
+		</mx:FormItem>
+		<mx:FormItem label="厂家">
+			<mx:TextInput id="vendor"/>
+		</mx:FormItem>
+		<mx:FormItem label="设备类型" required="true">
+			<mx:TextInput id="type"/>
+		</mx:FormItem>
+		<mx:FormItem label="驱动程序" required="true">
+			<mx:TextInput id="driver"/>
+		</mx:FormItem>
+		<mx:FormItem label="GUID" required="true">
+			<mx:TextInput id="guid"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="保存" id="submit" enabled="false" click="submit_data()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+</TitleWin>

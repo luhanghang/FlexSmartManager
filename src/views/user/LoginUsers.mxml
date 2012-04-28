@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" xmlns:u="utils.*" width="100%"
+ 	xmlns:views="views.*" styleName="menu" height="100%" borderSides="left right bottom" creationComplete="_init()">
+	<mx:Script>
+		<![CDATA[
+			import mx.rpc.events.ResultEvent;
+			import utils.*;
+			
+			[Bindable]
+			private var users:XML;
+			
+			private var timer:Timer = new Timer(3000);
+			
+			private function _init():void {
+				timer.addEventListener(TimerEvent.TIMER, refresh);
+			}
+			
+			private function refresh(event:TimerEvent):void {
+				timer.start();
+				init();
+			}
+			
+			public function init():void {
+				timer.stop();
+				userRPC.url = Utils.get_url("/login_users");
+				userRPC.send(); 				
+			} 
+			
+			private function set_users(event:ResultEvent):void {
+				timer.start();
+				users = XML(event.result);
+				list.dataProvider = users.User;
+				list.visible = true;
+			}
+			
+			private function labelFunc(item:Object, column:DataGridColumn):String {
+				var _item:XML = item as XML;
+				return (_item.childIndex() + 1).toString();
+            }
+            
+            public function on_exit():void {
+            	timer.stop();
+            	list.visible = false;
+            }
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="userRPC" useProxy="false" showBusyCursor="false" result="set_users(event)" resultFormat="xml"/>
+	<mx:DataGrid id="list" width="100%" height="100%" visible="false" y="25"
+		editable="false">
+		<mx:columns>
+			<mx:DataGridColumn headerText="序号" labelFunction="labelFunc" width="40" resizable="false" sortable="false"/>
+			<mx:DataGridColumn headerText="用户姓名" dataField="@realname"/>
+			<mx:DataGridColumn headerText="登录账号" dataField="@account"/>
+			<mx:DataGridColumn headerText="组织机构" dataField="@company"/>
+			<mx:DataGridColumn headerText="用户组" dataField="@group"/>
+			<mx:DataGridColumn headerText="角色" dataField="@role"/>
+			<mx:DataGridColumn headerText="登录时间" dataField="@login"/>
+		</mx:columns>
+	</mx:DataGrid>
+	<views:StyleTitle text="当前登录用户"/>
+</mx:Canvas>

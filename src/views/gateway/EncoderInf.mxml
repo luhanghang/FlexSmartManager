@@ -1,0 +1,236 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Panel xmlns:mx="http://www.adobe.com/2006/mxml" width="100%" height="100%"
+	xmlns:u="utils.*" creationComplete="init()" enabled="false" disabledOverlayAlpha="0">
+	
+	<mx:Metadata>
+		[Event(name="cancelEdit")]
+		[Event(name="Added",type="events.EncoderEvent")]	
+	</mx:Metadata>
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.validators.ValidationResult;
+			import mx.events.ValidationResultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.controls.Alert;
+			import utils.Utils;
+			import utils.FormValidator;
+			import mx.utils.StringUtil;
+			import events.EncoderEvent;
+			
+			[Bindable]
+			public var gw_id:String;
+			
+			[Bindable]
+			public var com_id:String;
+			
+			[Bindable]
+			private var encoder:XML;
+			
+			[Bindable]
+			public var encoders:XMLList;
+			
+			[Bindable]
+			public var DEVICES:XMLList;
+			
+//			[Bindable]
+//			private var gFilter:Array = [Utils.neonFilter()];
+			
+			private var formValidator:FormValidator=new FormValidator();
+			private var params:URLVariables = new URLVariables;
+			
+			public function init():void{
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+				controlbar.visible = Utils.getRole() != "mo";
+				controlbar.includeInLayout = controlbar.visible;
+				this.enabled = controlbar.visible;
+			}
+			
+			private function deviceChanged():void {
+				var node:XML = device_name.selectedItem as XML;
+				vendor.text = node.vendor;
+				device_type.text = node.type;
+				driver.text = node.driver;	
+			}
+			
+			private function save_failure():void {
+				Alert.show("网关未连接,不能保存       ","错误");
+			}
+			
+			private function set_data(event:ResultEvent):void {
+			 	var result:XML = XML(event.result);
+				if(result.localName().toString() == "Errors") {
+					var msg:String = "";
+					for each(var error:XML in result.Error) {
+						msg += error.@msg + "\r\n";
+					}
+					Alert.show(msg, "校验错误");
+					return;
+				}
+				if(encoder) {
+					encoder.@name = params['encoder[name]'];
+					encoder.@address = params['encoder[address]'];
+					encoder.@service_port = params['encoder[service_port]'];
+					encoder.@device = params['encoder[device]'];
+					encoder.@ptz_protocal = params['encoder[ptz_protocal]'];
+					encoder.@io_addr = params['encoder[io_addr]'];
+					encoder.@audio_port = params['encoder[audio_port]'];
+					encoder.@connect_type = params['encoder[connect_type]'];							
+				} else {
+					encoder = XML(event.result);
+					dispatchEvent(new EncoderEvent("Added", encoder));					
+				}
+				submit.enabled = true;
+				glow.play();
+			}
+			
+			private function save():void {
+				encoderRPC.url = Utils.get_url("/gateway/save_encoder");
+				params['id'] = gw_id;
+				params['seq'] = encoder?encoder.@seq:"";
+				params['encoder[id]'] = encoder?encoder.@id:"";
+        		params['encoder[name]'] = StringUtil.trim(encoder_name.text);
+        		params['encoder[address]'] = address.text;
+        		params['encoder[service_port]'] = service_port.text;
+        		params['encoder[device]'] = device_name.selectedIndex;
+        		params['encoder[ptz_protocal]'] = ptz_protocal.text;
+        		params['encoder[io_addr]'] = io_addr.text;
+        		params['encoder[audio_port]'] = audio_port.text;
+        		params['encoder[connect_type]'] = connect_type.selectedIndex;
+        		if(com_id && com_id != "") {
+        			params['encoder[company_id]'] = com_id;
+        		}
+				encoderRPC.send(params);
+				submit.enabled = false;
+			}
+			
+			private function get_ptz_protocal_index():Number {
+				if(!encoder) return -1;
+				for(var i:Number = 0; i < Gateway.DICTIONARY.PTZProtocals.Item.length(); i++) {
+					if(encoder.@ptz_protocal == Gateway.DICTIONARY.PTZProtocals.Item[i].@name)
+						return i;
+				}
+				return -1;
+			}
+			
+			public function set_encoder(encoder:XML):void {
+				this.encoder = encoder;
+				if(!encoder) {
+					return;
+				}
+				encoderInfRPC.url = Utils.get_url("/encoders/get_inf/" + encoder.@id);
+				encoderInfRPC.send();
+			}
+			
+			private function set_inf(event:ResultEvent):void {
+				this.encoder = XML(event.result);
+				if(ptz_protocal)
+					ptz_protocal.selectedIndex = get_ptz_protocal_index();
+				this.enabled = controlbar.visible;
+			}
+			
+			private function failure():void {
+				
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="encoderRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" resultFormat="xml" result="set_data(event)" fault="save_failure()"/>
+		
+	<mx:HTTPService id="encoderInfRPC" 
+		useProxy="false" method="POST" showBusyCursor="true" resultFormat="xml" result="set_inf(event)" fault="failure()"/>        
+    
+    <mx:Glow id="glow" target="{this}" repeatCount="3" effectEnd="utils.Alert.show('保存成功')"/>
+	
+	<mx:Array id="validators">
+		<u:UniqueValidatorXML id="c_name" source="{encoder_name}" selfObj="{encoder}" required="true" property="text" list="{encoders}" field="@name" errorMessage="编码器名称已被使用" requiredFieldError="请填写编码器名称"/>
+		
+		<u:UniqueIPValidatorXML source="{address}" selfObj="{encoder}" required="true" property="text" list="{encoders}" field="@address" errorMessage="设备地址已被使用" requiredFieldError="请填写设备地址"/>
+		
+		<u:UniqueNumberValidatorXML required="true" source="{service_port}" property="text" list="{encoders}" selfObj="{encoder}" field="@port"
+			allowNegative="false" 
+			minValue="0" errorMessage="服务端口已被使用,请选择其他端口"
+			maxValue="65535" 
+			requiredFieldError="请填写服务端口" 
+			lowerThanMinError="端口范围应该在0-65535之间" 
+			exceedsMaxError="端口范围应该在0-65535之间" 
+			negativeError="端口范围应该在0-65535之间" 
+			integerError="服务端口应该为数字"  
+			invalidCharError="服务端口应该为数字"/>
+		<mx:NumberValidator required="true" source="{audio_port}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="65535" 
+			requiredFieldError="请填写音频端口" 
+			lowerThanMinError="端口范围应该在0-65535之间" 
+			exceedsMaxError="端口范围应该在0-65535之间" 
+			negativeError="端口范围应该在0-65535之间" 
+			integerError="音频端口应该为数字"  
+			invalidCharError="音频端口应该为数字"/>	
+		<mx:NumberValidator required="true" source="{io_addr}" property="text"
+			allowNegative="false" 
+			minValue="0" 
+			maxValue="255" 
+			requiredFieldError="请填写IO地址" 
+			lowerThanMinError="IO地址范围应该在0-255之间" 
+			exceedsMaxError="IO地址范围应该在0-255之间" 
+			negativeError="IO地址范围应该在0-255之间" 
+			integerError="IO地址应该为数字"  
+			invalidCharError="IO地址应该为数字"/>
+		<mx:Validator source="{device_name}" property="text" required="true" requiredFieldError="请填写设备名称"/>
+		<mx:Validator source="{device_type}" property="text" required="true" requiredFieldError="请填写设备类型"/>
+		<mx:Validator source="{ptz_protocal}" property="text" required="true" requiredFieldError="请填写云台协议"/>
+		<mx:Validator source="{driver}" property="text" required="true" requiredFieldError="请填写驱动程序"/>	
+	</mx:Array>
+	
+	<mx:Form id="form" defaultButton="{submit}" width="100%" height="100%" verticalGap="8">
+		<mx:FormItem label="编码器名称" required="true">
+			<mx:TextInput id="encoder_name" text="{encoder.@name}" />
+		</mx:FormItem>
+		<mx:FormItem label="设备地址" required="true" visible="false" includeInLayout="false">
+			<!--<mx:TextInput id="address" text="{encoder.@address}"/>-->
+			<mx:TextInput id="address" text="192.168.1.10"/>
+		</mx:FormItem>
+		<mx:FormItem label="服务端口" required="true">
+			<mx:TextInput id="service_port" text="{encoder.@service_port}"/>
+		</mx:FormItem>
+		<mx:FormItem label="音频端口" required="true">
+			<mx:TextInput id="audio_port" text="{encoder.@audio_port}"/>
+		</mx:FormItem>
+		<mx:FormItem label="设备名称" required="true">
+			<mx:ComboBox id="device_name" dataProvider="{DEVICES}" 
+				labelField="name" selectedIndex="{encoder.@device}" change="deviceChanged()"/>
+		</mx:FormItem>
+		<mx:FormItem label="生产厂家">
+			<mx:TextInput id="vendor" enabled="false" text="{device_name.selectedItem.vendor}"/>
+		</mx:FormItem>
+		<mx:FormItem label="设备类型">
+			<mx:TextInput id="device_type" enabled="false" text="{device_name.selectedItem.type}"/>
+		</mx:FormItem>
+		<mx:FormItem label="驱动程序">
+			<mx:TextInput id="driver" enabled="false" text="{device_name.selectedItem.driver}"/>
+		</mx:FormItem>
+		<mx:FormItem label="云台协议" required="true" visible="false" includeInLayout="false">
+			<mx:ComboBox id="ptz_protocal" dataProvider="{Gateway.DICTIONARY.PTZProtocals.Item}" labelField="@name" selectedIndex="0"/>
+		</mx:FormItem>
+		<mx:FormItem label="IO地址" required="true" visible="false" includeInLayout="false">
+			<!--<mx:TextInput id="io_addr" text="{encoder.@io_addr}"/>-->
+			<mx:TextInput id="io_addr" text="10"/>
+		</mx:FormItem>
+		<mx:FormItem label="连接模式" required="true" visible="false" includeInLayout="false">
+			<mx:ComboBox id="connect_type" dataProvider="{Gateway.DICTIONARY.ConnectType.Item}" 
+				labelField="@name" selectedIndex="0"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar id="controlbar">
+		<mx:Button label="保存" id="submit" click="save()"/>
+		<mx:Button label="取消" click="dispatchEvent(new Event('cancelEdit'))"/>
+	</mx:ControlBar>
+</mx:Panel>

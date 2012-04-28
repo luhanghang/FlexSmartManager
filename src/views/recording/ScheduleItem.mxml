@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:Canvas xmlns:mx="http://www.adobe.com/2006/mxml" width="0" doubleClickEnabled="true" 
+	mouseChildren="false" useHandCursor="true" y="20" click="togglePosition(event)" 
+	styleName="scheduleItem" dropShadowEnabled="true" buttonMode="true" mouseOver="moveToTop(event)" 
+	horizontalScrollPolicy="off" verticalScrollPolicy="off" mouseMove="dragIt(event)"
+	removedEffect="{fade}" creationComplete="init()" maxHeight="20" minHeight="5" 
+	resizeEffect="{resize}" moveEffect="{mv}">
+	
+	<mx:Script>
+		<![CDATA[
+			import mx.events.ResizeEvent;
+			import mx.events.MoveEvent;
+			import mx.controls.Label;
+			import utils.Utils;
+			import mx.core.DragSource;
+			import mx.managers.DragManager;
+			
+			public var scheduleId:String;		
+			public var startHour:String;
+			public var startMin:String;			
+			public var endHour:String;
+			public var endMin:String;
+			public var lastTime:String;
+			public var state:Boolean;
+			public var day:Number;
+			public var color:Object;
+			
+			public function init():void {
+				setState();
+				var c:Object = color;
+				if(c == null || c== -1) c = Math.round( Math.random()*0xFFFFFF );
+				setStyle("backgroundColor", c);
+				setStyle("borderColor", c);
+				setToolTip();
+				resize.widthFrom = 0;
+				resize.play();
+				mv.xFrom = x;
+				mv.play();
+			}
+			
+			public function setToolTip():void {
+				toolTip = Schedule.days[day] + " " + startHour + ":" + startMin + "到" + endHour + ":" + endMin + " 持续时间:" + lastTime + "分钟 " + (state?"已启用":"未启用");
+			}
+			
+			private function dragIt(event:MouseEvent):void {
+				var ds:DragSource = new DragSource
+
+	            var canvasProxy:Canvas = new Canvas;
+	            var l:Label = new Label;
+	            l.text = toolTip;
+	            canvasProxy.addChild(l);
+	            canvasProxy.styleName = styleName;
+	            canvasProxy.setStyle("backgroundColor", getStyle("backgroundColor"));
+	            canvasProxy.setStyle("borderColor", getStyle("borderColor"));
+	            canvasProxy.x = event.localX - 100;
+	            DragManager.doDrag(this, ds, event, canvasProxy);
+			}
+			
+			private function moveToTop(event:MouseEvent):void {
+				this.parent.setChildIndex(this, this.parent.numChildren - 1);
+			}
+			
+			private function togglePosition(event:MouseEvent):void {
+				if(y == 20) y = 12;
+				else y = 20;
+			}
+			
+			private var orgColor:Object;
+			public function edit():void {
+				orgColor = this.getStyle("backgroundColor");
+				setStyle("backgroundColor",0);
+				setStyle("borderColor",0);
+			}
+			
+			public function restore():void {
+				setStyle("backgroundColor", orgColor);
+				setStyle("borderColor",orgColor);
+			}
+			
+			public function setState():void {
+				styleName = state? "scheduleItem":"scheduleItemDisabled";
+			}
+		]]>
+	</mx:Script>
+	<mx:Resize id="resize" heightFrom="{height}" widthTo="{width}" heightTo="{height}" duration="500" target="{this}" effectEnd="resize.widthFrom=width"/>
+	<mx:Move id="mv" xFrom="0" xTo="{x}" duration="500" target="{this}" effectEnd="mv.xFrom = x"/>
+	<mx:Fade id="fade" alphaFrom="1" alphaTo="0"/>
+</mx:Canvas>

@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<v:TitleWin xmlns:mx="http://www.adobe.com/2006/mxml" title="" 
+	xmlns:v="views.*"
+	width="330" height="228"
+	horizontalAlign="center" verticalAlign="middle"
+ 	creationComplete="init()" showCloseButton="false" xmlns:utils="utils.*">
+	<mx:Script>
+		<![CDATA[
+			import utils.Utils;
+			import utils.Config;
+			import mx.effects.Zoom;
+			import mx.controls.Alert;
+			import mx.rpc.events.ResultEvent;
+			import mx.managers.PopUpManager;
+		
+			private function init():void{
+				signInRequest.url = utils.Config.HOST + "/users/sign_in/";
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+				};
+			}
+			
+			private function checkLogin(event:ResultEvent):void {
+				var r:String = event.result.toString();
+				if(r == "NOLOGIN") {
+					shake.play();
+					return;	
+				}
+				if(r == "0") {
+					if(inuse.visible) inuse.visible = false;
+					inuse.visible = true;
+					return;
+				}
+				utils.Utils.loginInfo = r;
+				var p:String = r.split(":")[1];
+				r = r.split(":")[0];
+				if(r == 'op'){
+					var url:String = "/monitor/"; 
+					var request:URLRequest = new URLRequest(url); 
+					navigateToURL(request, "_top");
+				} else {
+					close();
+					callBack.call(parent, p);
+				}
+			}
+			
+			private function downloadClient():void { 
+				var request:URLRequest = new URLRequest("/setup.exe"); 
+				navigateToURL(request,"_blank");
+			}
+		]]>
+	</mx:Script>	
+	
+	<mx:HTTPService id="signInRequest" useProxy="false" method="POST"  
+		showBusyCursor="true" result="checkLogin(event)" resultFormat="text">
+		<mx:request xmlns="">
+			<account>
+				{account.text}
+			</account>
+			<passwd>
+				{passwd.text}
+			</passwd>
+		</mx:request>
+	</mx:HTTPService>
+	
+	<mx:Sequence id="shake" target="{this}">
+		<mx:Move duration="200" xBy="-200"/>
+		<mx:Blur duration="50" blurXTo="100"/>
+		<mx:Move duration="200" xBy="400"/>
+		<mx:Move duration="200" xBy="-400"/>
+		<mx:Move duration="200" xBy="400"/>
+		<mx:Blur duration="50" blurXTo="1"/>
+		<mx:Move duration="200" xBy="-200"/>
+	</mx:Sequence>
+	
+	<mx:Sequence id="alert">
+		<mx:Fade alphaFrom="0" alphaTo="1"/>
+		<mx:Glow repeatCount="3" color="red"/>	
+	</mx:Sequence>
+	
+	
+	<mx:Array id="validators">
+		<mx:Validator required="true" property="text" source="{account}" requiredFieldError="请输入登录账号"/>
+		<utils:PasswordValidator required="true" property="text" source="{passwd}" requiredFieldError="请输入登录密码"/>
+	</mx:Array>
+	<mx:Form defaultButton="{submit}" horizontalCenter="0" verticalCenter="-1">
+		<mx:FormItem label="登录帐号">
+			<mx:TextInput id="account">	
+			</mx:TextInput>
+		</mx:FormItem>
+		<mx:FormItem label="登录密码">
+			<mx:TextInput id="passwd" displayAsPassword="true">	
+			</mx:TextInput>
+		</mx:FormItem>
+		<mx:FormItem>
+			<mx:ControlBar>
+				<mx:Button label="进入系统" labelPlacement="left" id="submit" click="signInRequest.send()" enabled="false"/>
+			</mx:ControlBar>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:Image width="123" height="124" autoLoad="true" scaleContent="false" right="0" bottom="0" alpha="0.9">
+		<mx:source>@Embed('assets/key.png')</mx:source>
+	</mx:Image>
+	<mx:ControlBar>
+		<mx:HBox width="100%">
+			<mx:LinkButton label="下载控件安装程序" click="downloadClient()"/>
+			<mx:Spacer width="100%"/>
+			<mx:Label text="该用户正在使用系统" color="red" id="inuse" visible="false" showEffect="{alert}"/>
+		</mx:HBox>	
+	</mx:ControlBar>
+</v:TitleWin>

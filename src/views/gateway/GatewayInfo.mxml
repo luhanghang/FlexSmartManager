@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<TitleWin xmlns="views.*" xmlns:mx="http://www.adobe.com/2006/mxml" 
+	width="268" height="210" title="网关信息" creationComplete="init()"
+	xmlns:u="utils.*" disabledOverlayAlpha="0">
+	<mx:Script>
+		<![CDATA[
+			import utils.Alert;
+			import mx.collections.ArrayCollection;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import utils.Utils;
+			
+			[Bindable]
+			public var gateways:ArrayCollection;
+			
+			[Bindable]
+			public var gw:Object;
+			
+			private function init():void{
+				formValidator.addValidators(validators);
+				formValidator.failedCallBack=function():void{
+					submit.enabled=false;
+					bSave.enabled = false;
+				};
+				formValidator.passedCallBack=function():void{
+					submit.enabled=true;
+					bSave.enabled = false;
+				};
+			}
+			
+			private function test_connection():void {
+				var params:URLVariables = new URLVariables;
+				params.address = address.text;
+				params.port = port.text;
+				testRPC.url = Utils.get_url("/gateway/ping");
+				testRPC.send(params);	
+			}
+			
+			private function test_ok(event:ResultEvent):void {
+				var result:String = event.result.toString();
+				if(result == "1") {
+					Alert.show("连接成功");
+					bSave.enabled = true;
+				} else {
+					Alert.show("连接失败");
+				}
+			}
+			
+			private function test_failed():void {
+				Alert.show("服务不可用");
+				bSave.enabled = false;
+			}
+			
+			private function save():void {
+				enabled = false;
+				gRPC.url = utils.Utils.get_url("/gateway/save/" + gw.id);
+				var params:URLVariables = new URLVariables;
+				params['gateway[name]'] = gate_name.text;
+				params['gateway[address]'] = address.text;
+				params['gateway[l_address]'] = l_address.text;
+				params['gateway[port]'] = port.text;
+				gRPC.send(params);	
+			}
+			
+			private function set_gateway(event:ResultEvent):void {
+				var inf:Array = String(event.result).split(":");
+				gw.name = gate_name.text;
+				gw.address = address.text;
+				gw.l_address = l_address.text;
+				gw.port = port.text;
+				callBack.call(parent, gw);
+				close();	
+			}
+		]]>
+	</mx:Script>
+	
+	<mx:HTTPService id="testRPC" showBusyCursor="true" useProxy="false" resultFormat="text" 
+		result="test_ok(event)" fault="test_failed()" requestTimeout="5"/>
+	<mx:HTTPService id="gRPC" method="POST" useProxy="false" showBusyCursor="true" resultFormat="text" result="set_gateway(event)"/>
+	
+	<mx:Array id="validators">
+		<u:UniqueIPValidator required="true" selfObj="{gw}" property="text" source="{address}" requiredFieldError="请填写外网地址"
+		 	errorMessage="网关已存在" field="address" list="{gateways}" invalidAddress="请填写有效的IP地址"/>
+		<u:IPValidator required="true" property="text" requiredFieldError="请填写内网地址"
+		 	source="{l_address}"/> 	
+		<u:UniqueValidator required="true" property="text" selfObj="{gw}" source="{gate_name}" requiredFieldError="请填写网关名称"
+		 	errorMessage="网关名称已存在" field="name" list="{gateways}"/> 	
+		<mx:NumberValidator required="true" property="text" source="{port}" 
+			requiredFieldError="请填写web端口" 
+			maxValue="65535" minValue="1" allowNegative="false" 
+			exceedsMaxError="web端口范围应该在1-65535之间" 
+			integerError="web端口范围应该在1-65535之间" 
+			invalidCharError="web端口范围应该在1-65535之间" 
+			negativeError="web端口范围应该在1-65535之间"
+			lowerThanMinError="web端口范围应该在1-65535之间"/> 		
+	</mx:Array>
+	
+	<mx:Form x="0" y="0" width="100%" height="100%" defaultButton="{submit}">
+		<mx:FormItem label="网关名称">
+			<mx:TextInput id="gate_name" text="{gw.name}"/>
+		</mx:FormItem>
+		<mx:FormItem label="外网地址">
+			<mx:TextInput id="address" text="{gw.address}"/>
+		</mx:FormItem>
+		<mx:FormItem label="内网地址">
+			<mx:TextInput id="l_address" text="{gw.l_address}"/>
+		</mx:FormItem>
+		<mx:FormItem label="web端口">
+			<mx:TextInput id="port" text="{gw.port}"/>
+		</mx:FormItem>
+	</mx:Form>
+	<mx:ControlBar>
+		<mx:Button label="测通" id="submit" click="test_connection()"/>
+		<mx:Button label="保存" id="bSave" enabled="false" click="save()"/>
+		<mx:Button label="关闭" click="close()"/>
+	</mx:ControlBar>
+</TitleWin>

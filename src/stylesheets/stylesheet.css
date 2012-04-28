@@ -1,0 +1,406 @@
+/* CSS file */
+Application {
+	fontSize: 12;
+	fontWeight: normal;
+	color: #999999;
+	backgroundGradientAlphas: 1.0, 1.0;
+	backgroundGradientColors: #444444, #444444;
+}
+
+Canvas, HBox, VBox,HDividedBox {
+	backgroundAlpha:0;
+	color:#999999;
+}
+
+Tree {
+	borderStyle:none;
+	color:#999999;
+	rollOverColor: #2075F5;
+	selectionColor: #2075F5;
+	textRollOverColor:#ffffff;
+	textSelectedColor: #ffffff;
+	alternatingItemColors: #ffffff, #000000;
+	disabledColor: #666666;
+	backgroundAlpha:0.02;
+	rowHeight:22;
+	verticalScrollBarStyleName: scrollBar;
+	paddingTop:-1;
+	paddingBottom:0;
+}
+
+ToolTip {
+	fontSize:12;
+}
+
+ApplicationControlBar
+{
+	fillAlphas: 0.0, 0.0;
+	highlightAlphas: 0, 0;
+	cornerRadius: 0;
+}
+
+.title {
+	color:#cccccc;
+	borderColor:#666666;
+	cornerRadius: 4;
+	borderStyle:solid;
+	backgroundAlpha: 0;
+}
+
+CheckBox {
+	color: #cccccc;
+	borderColor: #999999;
+	fontWeight:normal;
+	fillAlphas: 0.0, 0.0, 0.0, 0.0;
+	highlightAlphas: 0.0, 0.0, 0.0, 0.0;
+	textRollOverColor: #ffffff;
+	textSelectedColor: #ffffff;
+	cornerRadius: 2;
+	disabledColor: #999999;
+}
+
+Button {
+	color: #cccccc;
+	textRollOverColor: #ffffff;
+	textSelectedColor: #ffffff;
+	disabledColor: #999999;
+	upSkin: Embed(source="../assets/button01-u.jpg");
+	overSkin: Embed(source="../assets/button01-f.jpg");
+	downSkin: Embed(source="../assets/button01-d.jpg");
+	
+}
+
+CheckBox,RadioButton {
+	iconColor:#ffffff; 
+}
+
+.button, .buttono {
+	color: #ffffff;
+	cornerRadius: 5;
+	paddingTop:1;
+	paddingBottom:1;
+	paddingLeft:3;
+	paddingRight:3;
+	borderStyle: solid;
+	borderThickness: 1;
+	horizontalAlign: center;
+}
+
+.button {
+	borderColor: #000000;
+	backgroundImage:url("assets/mi.jpg");
+}
+
+.buttono {
+	borderColor: #2075F5;
+	backgroundImage:url("assets/mi-s.jpg");
+}
+
+Form
+{
+	backgroundColor: #292929;
+	verticalGap: 2;
+	color:#cccccc;
+	backgroundAlpha: 0;
+	paddingTop: 5;
+	paddingBottom: 5;
+	indicatorGap: 10;
+	paddingLeft:5;
+	paddingRight:5;
+}
+
+FormItem {
+	color:#cccccc;
+}
+
+List {
+	backgroundAlpha:0;
+	color: #B2E1FF;
+	borderStyle:none;
+}
+
+TitleWindow {
+	color: #B2E1FF;
+	backgroundAlpha:0.3;
+	backgroundColor: #000000;
+	borderColor:#F06B1A;
+	borderStyle:solid;
+	cornerRadius: 3;
+	fontSize:12;
+	titleStyleName: panelTitle;
+	controlBarStyleName: panelControlBar;
+	borderAlpha: 0.8;
+	dropShadowEnabled:true;
+	roundedBottomCorners: true;
+}
+
+LinkButton {
+	rollOverColor: #333333;
+	selectionColor: #333333;
+
+}
+
+Panel {
+	backgroundAlpha:0;
+	color: #B2E1FF;
+	fontSize:12;
+	borderStyle:none;
+}
+
+Grid {
+	horizontalGap:-1;
+    verticalGap:-1;
+    borderStyle:none;
+}
+        
+GridItem {
+	borderColor:#cccccc;
+    borderStyle:solid;
+}
+
+TextInput {
+	backgroundAlpha: 0;
+	borderColor:#666666;
+	borderStyle:solid;
+	cornerRadius: 2;
+	backgroundColor: #333333;
+}
+
+.errorTip {
+	borderColor: haloOrange;
+	fontSize: 12;
+	borderAlpha:0.5;
+	fontWeight:normal;
+}
+
+.menuItem {
+	color:#999999;
+}
+
+.menuItemSelected {
+	color:#ffffff;	
+}
+
+.mi {
+	 backgroundImage:url("assets/mi.jpg");	 
+}
+
+.miSelected {
+	backgroundImage:url("assets/mi-s.jpg");	
+}
+
+.miDown {
+	backgroundImage:url("assets/mi-d.jpg");	
+}
+
+.menu {
+	backgroundColor:#323232;
+	backgroundAlpha:1;
+	paddingTop:25;
+	paddingLeft:10;
+	paddingRight:10;
+	paddingBottom:10;
+	color:#86BAC5;
+	borderColor:#666666;
+	cornerRadius: 1;
+	borderStyle:solid;
+}
+
+DataGrid {
+	backgroundAlpha:0.05;
+	color:#999999;
+	rollOverColor: #2075F5;
+	textRollOverColor:#ffffff;
+	textSelectedColor: #ffffff;
+	selectionColor: #2075F5;
+	horizontalGridLines: false;
+	horizontalGridLineColor: #666666;
+	verticalGridLineColor: #666666;
+	verticalScrollBarStyleName: dataGridVerticalScrollBar;
+	headerColors: #333333, #000000;
+	headerStyleName: dataGridHeader;
+	borderColor: #666666;
+	borderThickness: 1;
+	borderStyle: none;
+	alternatingItemColors: #ffffff, #000000;
+	verticalScrollBarStyleName: scrollBar;
+}
+.dataGridVerticalScrollBar
+{
+	fillAlphas: 0.0, 0.0, 0.0, 0.0;
+	borderColor: #333333;
+}
+.dataGridHeader
+{
+	color:#ffffff;
+}
+.panelTitle
+{
+	fontWeight: normal;
+	color:#cccccc;
+}
+.panelControlBar
+{
+	backgroundAlpha: 0.5;
+	color:#999999;
+}
+
+Alert {
+	backgroundColor:#333333;
+	backgroundAlpha:0.5;
+	color:#cccccc;
+	borderColor:#457782;
+	borderAlpha: 0.02;
+	borderThicknessBottom: 1;
+	borderThicknessLeft: 1;
+	borderThicknessRight:1;
+	borderThicknessTop: 1;
+	paddingBottom:8;
+	titleStyleName: panelTitle;
+	buttonStyleName: "button";
+	dropShadowEnabled:true;
+}
+
+.laser {
+	backgroundColor:#ffffff;
+	backgroundAlpha:1;
+}
+
+ScrollBar, .scrollBar {
+	trackColors: #666666, #666666;
+	backgroundColor: #333333; 
+	borderColor: #333333;
+	fillAlphas: 0.0, 0.0, 0.0, 0.0;
+}
+
+.scheduleItem {
+	borderStyle: solid;
+	backgroundAlpha: 0.8;
+	color:#ffffff;
+	cornerRadius: 4;
+	fontSize:12;
+}
+
+.scheduleItemDisabled {
+	borderStyle: solid;
+	backgroundAlpha: 0;
+	color:#ffffff;
+	cornerRadius: 4;
+	fontSize:12;
+}
+
+ComboBox {
+	color:#999999;
+	backgroundAlpha: 0;
+	borderColor:#666666;
+	borderStyle:solid;
+	cornerRadius: 2;
+	backgroundColor: #333333;
+	dropdownStyleName: comboBoxDropdown;
+	fontSize:12;
+	fontWeight:normal;
+	verticalScrollBarStyleName: scrollBar;
+}
+
+.comboBoxDropdown {
+	color:#ffffff;
+	backgroundAlpha: 0.9;
+	borderColor:#666666;
+	borderStyle:solid;
+	cornerRadius: 2;
+	backgroundColor: #222222;
+}
+
+.board {
+	
+}	
+
+.scheduleEditor {
+	backgroundColor: #222222;
+	backgroundAlpha: 0.8;
+	cornerRadius: 4;
+	borderColor: #000000;
+	borderStyle: solid;
+}
+
+DateChooser{
+	headerColors: #333333, #000000;
+   	color: #ffffff;
+   	headerStyleName: "mydateChooserHeaderStyle";
+	borderColor: #0d2227;
+	backgroundAlpha: 0.0;
+	borderThickness: 0;
+	todayColor: #084D83;
+	rollOverColor: haloOrange;
+	selectionColor: haloOrange;
+	textSelectedColor: #ffffff;
+	weekDayStyleName: "mydateChooserHeaderStyle";
+}
+ 
+.mydateChooserHeaderStyle {
+   color: #a7a7a7;
+}
+
+.lt {
+	borderStyle:solid;
+	borderColor:#666666;
+	cornerRadius:5;
+	backgroundAlpha: 1.0;
+	backgroundColor: #333333;	
+}
+
+.lb {
+	borderStyle:solid;
+	borderColor:#666666;
+	cornerRadius:5;
+	backgroundAlpha: 1.0;
+	backgroundColor: #1C1B1B;
+}
+
+.adminInfo {
+	borderStyle:solid;
+	borderColor:#444444;
+	cornerRadius:5;
+	backgroundAlpha: 1.0;
+	backgroundColor: #282828;	
+}
+
+.label {
+	borderStyle:solid;
+	borderColor:#444444;
+	cornerRadius:3;
+	backgroundAlpha: 1.0;
+	backgroundColor: #222222;
+}
+
+.adminInfoHover {
+	borderStyle:solid;
+	borderColor:#666666;
+	cornerRadius:5;
+	backgroundAlpha: 1.0;
+	backgroundColor: #282828;	
+}
+
+.labelHover {
+	borderStyle:solid;
+	borderColor:#666666;
+	cornerRadius:3;
+	backgroundAlpha: 1.0;
+	backgroundColor: #222222;
+}
+ButtonBar
+{
+	horizontalGap: -1;
+	firstButtonStyleName: buttonBarButton;
+	buttonStyleName: buttonBarButton;
+	lastButtonStyleName: buttonBarButton;
+}
+.buttonBarButton
+{
+	fillAlphas: 1.0, 1.0, 1.0, 1.0;
+	fillColors: #020202, #000000, #1E1D1D, #1E1D1D;
+	borderColor: #000000;
+	upSkin: Embed(source="../assets/button01-u.jpg");
+	overSkin: Embed(source="../assets/button01-f.jpg");
+	downSkin: Embed(source="../assets/button01-d.jpg");
+}
